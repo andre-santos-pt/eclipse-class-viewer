@@ -73,6 +73,11 @@ public class JModel implements Iterable<JType>, Serializable {
 				
 				return (JClass) array[i];
 			}
+
+			@Override
+			public void remove() {
+				throw new UnsupportedOperationException();
+			}
 			
 		};
 	}
