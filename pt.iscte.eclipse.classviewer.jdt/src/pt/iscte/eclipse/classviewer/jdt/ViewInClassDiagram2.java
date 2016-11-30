@@ -1,11 +1,19 @@
 package pt.iscte.eclipse.classviewer.jdt;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IPath;
+import org.eclipse.jdt.core.Flags;
 import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMethod;
@@ -13,6 +21,12 @@ import org.eclipse.jdt.core.IPackageFragment;
 import org.eclipse.jdt.core.ISourceRange;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaModelException;
+import org.eclipse.jdt.core.Signature;
+import org.eclipse.jdt.core.dom.AST;
+import org.eclipse.jdt.core.dom.ASTNode;
+import org.eclipse.jdt.core.dom.ASTParser;
+import org.eclipse.jdt.core.dom.ASTVisitor;
+import org.eclipse.jdt.core.dom.FieldDeclaration;
 import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -30,103 +44,91 @@ import pt.iscte.eclipse.classviewer.model.JClass;
 import pt.iscte.eclipse.classviewer.model.JInterface;
 import pt.iscte.eclipse.classviewer.model.JModel;
 import pt.iscte.eclipse.classviewer.model.JOperation;
+import pt.iscte.eclipse.classviewer.model.JPackage;
 import pt.iscte.eclipse.classviewer.model.JType;
+import pt.iscte.eclipse.classviewer.model.Stereotype;
 
 public class ViewInClassDiagram2 implements IObjectActionDelegate {
 
-	private IStructuredSelection selection;
+	private List<IJavaElement> selection = new ArrayList<>();
 	private DiagramListener handler;
 
 	public void setActivePart(IAction action, IWorkbenchPart targetPart) {
 
 	}
 
-	public void selectionChanged(IAction action, ISelection selection) {
-		if(selection instanceof IStructuredSelection)
-			this.selection = (IStructuredSelection) selection;
-		else
-			this.selection = null;
-	}
+	public void selectionChanged(IAction action, ISelection s) {
+		selection.clear();
+		if(s instanceof IStructuredSelection) {
 
-	public void run(IAction action) {
-		if(selection == null || selection.isEmpty())
-			return;
-
-		try {
-			final IJavaProject proj = ((IJavaElement) selection.getFirstElement()).getJavaProject();
-			IPath p = proj.getCorrespondingResource().getLocation();
-
-			JModel model = new JModel();
-
-			List<IType> classes = new ArrayList<IType>();
-			for(Object obj : selection.toArray()) {
-				IJavaElement o = (IJavaElement) obj;
-
-				if(o instanceof ICompilationUnit) {
-					classes.add(handleCompilationUnit((ICompilationUnit) o, model));
-				}
-				else if(o instanceof IPackageFragment) {
-					IPackageFragment pack = (IPackageFragment) o;
-					for(ICompilationUnit u : pack.getCompilationUnits())
-						classes.add(handleCompilationUnit(u, model));
-				}
-			}
-
-			for(IType t : classes)
-				if(!t.isInterface())
-					;//handleAssociations(t, model);
-
-			JModelDiagram.display(model);
-
-			if(handler != null)
-				JModelDiagram.removeListener(handler);
-
-			handler = new DiagramListener.Adapter() {
-				@Override
-				public void operationEvent(JOperation op, Event event) {
-					IType t = null;
-					try {
-						t = proj.findType(op.getOwner().getQualifiedName());
-						IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
-						ITextEditor editor = (ITextEditor) IDE.openEditor(page, (IFile) t.getResource());
-						for(IMethod im : t.getMethods()) {
-							if(im.getElementName().equals(op.getName())) {
-								ISourceRange range =  im.getNameRange();
-								editor.selectAndReveal(range.getOffset(), range.getLength());
-							}
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
-					} 
-				}
-
-				@Override
-				public void classEvent(JType type, Event event) {
-					IType t = null;
-					try {
-						t = proj.findType(type.getQualifiedName());
-						if(t != null) {
-							IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
-							ITextEditor editor = (ITextEditor) IDE.openEditor(page, (IFile) t.getResource());
-							ISourceRange range =  t.getNameRange();
-							editor.selectAndReveal(range.getOffset(), range.getLength());
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
-					} 
-				}
-			};
-
-			handler = new DiagramListener.EventFilter(handler, Event.DOUBLE_CLICK);
-			JModelDiagram.addListener(handler);
-
-		} catch (Exception e) {
-			e.printStackTrace();
+			for(Object obj : ((IStructuredSelection) s).toList())
+				if(obj instanceof IJavaElement)
+					selection.add((IJavaElement) obj);
 		}
 	}
 
+	public void run(IAction action) {
+		if(selection.isEmpty())
+			return;
+		JModel model = null;
+		try {
+			model = buildModel();
+		}
+		catch(Exception e) {
+			e.printStackTrace();
+		}
+		JModelDiagram.display(model);
 
-	private IType handleCompilationUnit(ICompilationUnit unit, JModel model)
+		if(handler != null)
+			JModelDiagram.removeListener(handler);
+
+		JModelDiagram.addListener(handler);
+
+	}
+
+	private JModel buildModel() throws JavaModelException, Exception {
+		JModel model = new JModel();
+		Map<JType, IType> classes = new HashMap<>();
+		IJavaElement firstInSelection = selection.get(0);
+
+		for(IJavaElement element : selection) {
+			if(firstInSelection instanceof IJavaProject) {
+				IJavaProject project = (IJavaProject) element;
+				IPackageFragment[] pcks = project.getPackageFragments();
+				for(IPackageFragment p : pcks) {
+					for(ICompilationUnit u : p.getCompilationUnits()) {
+						IType t = u.findPrimaryType();
+						if(Flags.isPublic(t.getFlags())) {
+							JType jt = handleCompilationUnit(u, model);
+							classes.put(jt, t);
+						}
+
+					}
+				}
+			}
+			else if(firstInSelection instanceof IPackageFragment) {
+				IPackageFragment pack = (IPackageFragment) element;
+				for(ICompilationUnit u : pack.getCompilationUnits()) {
+					JType jt = handleCompilationUnit(u, model);
+					classes.put(jt, u.findPrimaryType());
+				}
+			}
+		}
+
+		handleExtends(classes, model);
+		handleImplements(classes, model);
+		handleDependencies(classes, model);
+		
+		for(IType t : classes.values()) {
+			
+			if(!t.isInterface())
+				handleAssociations(t, model);
+		}
+		return model;
+	}
+
+
+	private JType handleCompilationUnit(ICompilationUnit unit, JModel model)
 			throws Exception {
 
 		IType t = unit.findPrimaryType();
@@ -137,37 +139,114 @@ public class ViewInClassDiagram2 implements IObjectActionDelegate {
 			owner = ji;
 			model.addType(ji);
 
-			for(String interfaceName : t.getSuperInterfaceNames()) {
-				JInterface si = new JInterface(interfaceName);
-				ji.addSupertype(si);
-			}
+			//			for(String interfaceName : t.getSuperInterfaceNames()) {
+			//				JInterface si = new JInterface(interfaceName);
+			//				ji.addSupertype(si);
+			//			}
 		}
 		else {
 			JClass jc = new JClass(t.getFullyQualifiedName());
 			owner = jc;
 			model.addType(jc);
-			String superName = t.getSuperclassName();
-			if(superName != null && !"Object".equals(superName)) {
-				JClass superclass = new JClass(t.getSuperclassName());
-				model.addType(superclass);
-				jc.setSuperclass(superclass);
-			}
 			for(String interfaceName : t.getSuperInterfaceNames()) {
 				JInterface si = new JInterface(interfaceName);
 				jc.addInterface(si);
 			}
 		}
-		for(IMethod m : t.getMethods()) {
 
+		for(IMethod m : t.getMethods())
 			new JOperation(owner, m.getElementName());
-		}
 
-		return t;
+		return owner;
+	}
+
+	private void handleExtends(Map<JType, IType> classes, JModel model) throws JavaModelException {
+		for(Entry<JType, IType> e : classes.entrySet()) {
+			IType t = e.getValue();
+			if(t.isClass() && t.getSuperclassName() != null && !Object.class.getSimpleName().equals(t.getSuperclassName())) {
+				String superQName = resolve(t, t.getSuperclassName());
+				if(superQName == null)
+					superQName = t.getSuperclassName();
+				JClass superclass = model.getClass(superQName);
+				if(superclass == null) {
+					superclass = new JClass(superQName);
+					superclass.addStereotype(new Stereotype("external"));
+					model.addType(superclass);
+				}
+				((JClass) e.getKey()).setSuperclass(superclass);
+			}
+			else if(t.isInterface()) {
+				for (String interfaceImpl : t.getSuperInterfaceNames()) {
+					String interfaceQName = resolve(t, interfaceImpl);
+					if(interfaceQName == null)
+						interfaceQName = interfaceImpl;
+					JInterface interfaceType = model.getInterface(interfaceQName);
+					if(interfaceType == null) {
+						interfaceType = new JInterface(interfaceQName);
+						interfaceType.addStereotype(new Stereotype("external"));
+						model.addType(interfaceType);
+					}
+				}
+			
+				
+			}
+		}
+	}
+
+	private static String resolve(IType t, String typeName) {
+		String[][] resolveType;
+		try {
+			resolveType = t.resolveType(typeName);
+			if(resolveType != null)
+				return resolveType[0][0] + "." + resolveType[0][1];
+			else
+				return null;
+		} catch (JavaModelException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	
+	private void handleImplements(Map<JType, IType> classes, JModel model)  {
+
+
+	}
+
+	private void handleDependencies(Map<JType, IType> classes, final JModel model) {
+		for(Entry<JType, IType> e : classes.entrySet()) {
+			final IType it = e.getValue();
+			final JType t = e.getKey();
+			ASTParser parser = ASTParser.newParser(AST.JLS8);
+			parser.setSource(e.getValue().getCompilationUnit());
+			ASTNode root = parser.createAST(null);
+			root.accept(new ASTVisitor() {
+				@Override
+				public boolean visit(FieldDeclaration node) {
+					String tName = resolve(it, node.getType().toString());
+					if(tName == null)
+						System.out.println("NULL: " + node.getType());
+					else {
+						JType dep = model.getType(tName);
+						if(dep != null && !t.equals(dep))
+							t.addDependency(dep);
+					}
+					return true;
+				}
+			});
+		}
 	}
 
 	private void handleAssociations(IType t, JModel model) {
 
-
+		try {
+			for (IField f : t.getFields()) {
+				String[] typeArguments = Signature.getTypeArguments(f.getTypeSignature());
+				System.out.println(Arrays.toString(typeArguments));
+			}
+		} catch (JavaModelException e1) {
+			e1.printStackTrace();
+		}
 		try {
 			for(IMethod m : t.getMethods()) {
 				//			m.get
@@ -229,6 +308,42 @@ public class ViewInClassDiagram2 implements IObjectActionDelegate {
 	//	}
 
 
+	private class Listener extends DiagramListener.Adapter {
+		private final Map<JType, IType> classes;
 
+		Listener(Map<JType, IType> classes) {
+			this.classes = classes;
+		}
+
+		@Override
+		public void operationEvent(JOperation op, Event event) {
+			IType t = classes.get(op.getOwner());
+			try {
+				IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+				ITextEditor editor = (ITextEditor) IDE.openEditor(page, (IFile) t.getResource());
+				for(IMethod im : t.getMethods()) {
+					if(im.getElementName().equals(op.getName())) {
+						ISourceRange range =  im.getNameRange();
+						editor.selectAndReveal(range.getOffset(), range.getLength());
+					}
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			} 
+		}
+
+		@Override
+		public void classEvent(JType type, Event event) {
+			IType t = classes.get(type);
+			try {
+				IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+				ITextEditor editor = (ITextEditor) IDE.openEditor(page, (IFile) t.getResource());
+				ISourceRange range =  t.getNameRange();
+				editor.selectAndReveal(range.getOffset(), range.getLength());
+			} catch (Exception e) {
+				e.printStackTrace();
+			} 
+		}
+	}
 
 }

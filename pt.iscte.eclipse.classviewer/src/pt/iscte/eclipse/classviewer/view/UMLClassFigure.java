@@ -28,6 +28,7 @@ import org.eclipse.swt.graphics.Font;
 import pt.iscte.eclipse.classviewer.model.JClass;
 import pt.iscte.eclipse.classviewer.model.JOperation;
 import pt.iscte.eclipse.classviewer.model.JType;
+import pt.iscte.eclipse.classviewer.model.Stereotype;
 
 public class UMLClassFigure extends Figure {
 
@@ -101,17 +102,12 @@ public class UMLClassFigure extends Figure {
 		return operations;
 	}
 
-	//------------------------------------------------------
-	//------------------------------------------------------
-	//					NAME SECTION
-	//------------------------------------------------------
-	//------------------------------------------------------
 	private void addNameLabel(final JType type) {
 		Font font = null;
 
 		if(type.isInterface()) { //Interface
-			Label interfaceLabel = createLabel("<<interface>>", INTERFACE_DESC_FONT);
-			add(interfaceLabel);
+			Label label = createLabel("<<interface>>", INTERFACE_DESC_FONT);
+			add(label);
 			font = CLASS_FONT;
 		}
 		else if (type.isClass() && ((JClass) type).isAbstract()) { //Abstract
@@ -120,6 +116,12 @@ public class UMLClassFigure extends Figure {
 		else { //Class
 			font = CLASS_FONT;
 		}
+		
+		for(Stereotype s : type.getSterotypes()) {
+			Label label = createLabel("<<" + s.getName() + ">>", INTERFACE_DESC_FONT);
+			add(label);
+		}
+			
 
 		Label nameLabel = createLabel(type.getName(), font);
 		Label toolTipLabel = createToolTipLabel(type.getQualifiedName());

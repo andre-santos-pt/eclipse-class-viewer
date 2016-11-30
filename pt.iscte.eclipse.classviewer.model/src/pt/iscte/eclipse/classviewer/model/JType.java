@@ -14,6 +14,7 @@ public  abstract class JType extends StereotypedElement implements Iterable<JOpe
 	private Visibility visibility;
 	
 	private List<JOperation> operations;
+	private List<JType> dependencies;
 	
 	JType(String qualifiedName) {
 		super(qualifiedName);
@@ -22,6 +23,7 @@ public  abstract class JType extends StereotypedElement implements Iterable<JOpe
 		this.qualifiedName = qualifiedName;
 		visibility = Visibility.PUBLIC;
 		operations = Collections.emptyList();
+		dependencies = Collections.emptyList();
 	}
 
 	public String getQualifiedName() {
@@ -58,6 +60,18 @@ public  abstract class JType extends StereotypedElement implements Iterable<JOpe
 		operations.add(operation);
 	}
 	
+	public void addDependency(JType type) {
+		checkNotNull(type);
+		
+		if(dependencies.isEmpty())
+			dependencies = new ArrayList<JType>();
+		
+		dependencies.add(type);
+	}
+	
+	public Iterable<JType> getDependencies() {
+		return Collections.unmodifiableList(dependencies);
+	}
 //	public Iterable<MMethod> getOperations() {
 //		return Collections.unmodifiableList(operations);
 //	}
@@ -107,5 +121,7 @@ public  abstract class JType extends StereotypedElement implements Iterable<JOpe
 	public String toString() {
 		return qualifiedName + " " + (isClass() ? "[class]" : "[interface]");
 	}
+
+
 	
 }

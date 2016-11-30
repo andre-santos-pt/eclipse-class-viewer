@@ -109,6 +109,18 @@ public final class JClass extends JType {
 		
 	}
 
+	public boolean compatibleWith(JClass clazz) {
+		JClass c = this;
+		while(c != null) {
+			if(c == clazz)
+				return true;
+			c = c.getSuperclass();
+		}
+		return false;
+	}
+	
+	
+
 	
 	
 }

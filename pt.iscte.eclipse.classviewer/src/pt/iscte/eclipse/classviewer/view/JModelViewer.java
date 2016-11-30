@@ -88,13 +88,6 @@ public class JModelViewer extends ViewPart {
 		graph.setBackground(new Color(null, 250,250,250));
 		createPopupMenu();
 
-//		graph.addSelectionListener(new SelectionAdapter() {
-//			@Override
-//			public void widgetSelected(SelectionEvent e) {
-//				System.out.println("selected " + e);
-//			}
-//		});
-		
 		graph.addMouseListener(new MouseListener() {
 			
 			@Override
@@ -151,6 +144,9 @@ public class JModelViewer extends ViewPart {
 	}
 
 	public void displayModel(JModel model, boolean incremental) {
+		for(JType t : model)
+			System.out.println(t);
+		
 		if(!incremental)
 			clear();
 
@@ -197,6 +193,9 @@ public class JModelViewer extends ViewPart {
 			}
 			else
 				setInheritanceConnectionsInterface((JInterface) prev, newTypes);
+			
+			for(JType dep : prev.getDependencies())
+				createDependencyConnection(prev, dep);
 		}
 
 		for(JType neww : newTypes) { //Sets connections between the added classes and all the classes
@@ -260,6 +259,28 @@ public class JModelViewer extends ViewPart {
 		connectionFigure.setTargetDecoration(decoration);
 	}
 
+	
+	private void createDependencyConnection(JType source, JType target) {
+		GraphConnection connection = new GraphConnection(graph, ZestStyles.CONNECTIONS_DASH, nodesMapper.get(source), nodesMapper.get(target));
+		connection.setLineColor(ColorConstants.black);
+		connection.setHighlightColor(ColorConstants.darkGreen);
+
+		if(!PolylineConnection.class.isAssignableFrom(connection.getConnectionFigure().getClass())) return;
+
+		PolylineConnection connectionFigure = (PolylineConnection)connection.getConnectionFigure();
+
+		PointList decorationPointList = new PointList();
+		decorationPointList.addPoint(-2,2);
+		decorationPointList.addPoint(0,0);
+		decorationPointList.addPoint(-2,-2);
+
+		PolylineDecoration decoration = new PolylineDecoration();
+//		decoration.setBackgroundColor(ColorConstants.white);
+		decoration.setTemplate(decorationPointList);
+
+		connectionFigure.setTargetDecoration(decoration);
+	}
+	
 	private void createImplementsConnection(JType source, JType target) {
 		GraphConnection connection = new GraphConnection(graph, ZestStyles.NONE, nodesMapper.get(source), nodesMapper.get(target));
 		connection.setLineColor(ColorConstants.black);
@@ -357,14 +378,7 @@ public class JModelViewer extends ViewPart {
 
 		nodesMapper.clear(); //Clear mapper
 	}
-	//######################################################
-	//######################################################
 
-	//------------------------------------------------------
-	//------------------------------------------------------
-	//					INNER CLASSES
-	//------------------------------------------------------
-	//------------------------------------------------------
 	private class ShowFragmentAgent implements Runnable {
 
 		private Iterable<JType> types;
@@ -413,14 +427,6 @@ public class JModelViewer extends ViewPart {
 	}
 
 	
-
-
-
-
-
-
-
-
 
 	private enum LayoutMode {
 		Spring {
@@ -487,12 +493,6 @@ public class JModelViewer extends ViewPart {
 			graph.setLayoutAlgorithm(layoutAlgorithm(), true);
 		}
 	}
-
-
-
-
-
-
 
 
 

@@ -6,9 +6,11 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -35,9 +37,32 @@ public class JModel implements Iterable<JType>, Serializable {
 		types.put(type.getQualifiedName(), type);
 	}
 	
+	public void addPackage(JPackage pkg) {
+		checkNotNull(pkg);
+		packages.add(pkg);
+	}
+	
+	
 	@Override
 	public Iterator<JType> iterator() {
-		return Collections.unmodifiableCollection(types.values()).iterator();
+		List<JType> list = new ArrayList<>(types.values());
+		list.sort(new Comparator<JType>() {
+			public int compare(JType a, JType b) {
+				if(a instanceof JClass && b instanceof JClass) {
+					JClass aa = (JClass) a;
+					JClass bb = (JClass) b;
+					if(aa.compatibleWith(bb))
+						return 1;
+					else if(bb.compatibleWith(aa))
+						return -1;
+					else
+						return 0;
+				}
+				else
+					return 0;
+			};
+		});
+		return list.iterator();
 	}
 	
 	public Iterator<JPackage> getPackages() {
@@ -94,6 +119,16 @@ public class JModel implements Iterable<JType>, Serializable {
 		return types.get(qualifiedName);
 	}
 
+	public JClass getClass(String qualifiedName) {
+		JType t = types.get(qualifiedName);
+		return t instanceof JClass ? (JClass) t : null;
+	}
+	
+	public JInterface getInterface(String qualifiedName) {
+		JType t = types.get(qualifiedName);
+		return t instanceof JInterface ? (JInterface) t : null;
+	}
+	
 	public boolean hasType(String qualifiedName) {
 		return types.containsKey(qualifiedName);
 	}

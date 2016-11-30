@@ -22,7 +22,7 @@ public class JModelDiagram {
 	}
 	
 	public static void removeListener(DiagramListener listener) {
-		JModelViewer.getInstance().addClickHandler(listener);
+		JModelViewer.getInstance().removeClickHandler(listener);
 	}
 
 }

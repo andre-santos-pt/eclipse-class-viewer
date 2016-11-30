@@ -25,4 +25,8 @@ public abstract class StereotypedElement extends NamedElement {
 		
 		stereotypes.add(stereotype);
 	}
+	
+	public Iterable<Stereotype> getSterotypes() {
+		return Collections.unmodifiableList(stereotypes);
+	}
 }

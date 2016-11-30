@@ -15,34 +15,18 @@ public interface DiagramListener {
 	
 	void associationEvent(Association association, Event event);
 	
-	public static enum Event {
+	enum Event {
 		ADD,
 		CLEAR,
 		SELECT,
 		DOUBLE_CLICK;
 	}
 	
-	public static class Adapter implements DiagramListener {
-
-		@Override
-		public void diagramEvent(JModel model, Event event) {
-		
-		}
-		
-		@Override
-		public void classEvent(JType type, Event event) {
-			
-		}
-
-		@Override
-		public void operationEvent(JOperation operation, Event event) {
-			
-		}
-
-		@Override
-		public void associationEvent(Association association, Event event) {
-			
-		}
+	class Adapter implements DiagramListener {
+		public void diagramEvent(JModel model, Event event) { }
+		public void classEvent(JType type, Event event) { }
+		public void operationEvent(JOperation operation, Event event) { }
+		public void associationEvent(Association association, Event event) { }
 	}
 	
 	public static class EventFilter implements DiagramListener {
