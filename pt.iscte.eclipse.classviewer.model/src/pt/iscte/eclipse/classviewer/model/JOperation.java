@@ -2,7 +2,11 @@ package pt.iscte.eclipse.classviewer.model;
 
 import static pt.iscte.eclipse.classviewer.model.Util.checkNotNull;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 
 public class JOperation extends NamedElement {
@@ -13,17 +17,26 @@ public class JOperation extends NamedElement {
 	private Visibility visibility;
 	private boolean isAbstract;
 	private boolean isStatic;
-	private List<JClass> params;
+	private List<JType> params;
+	private Set<JOperation> deps;
 	private JType returnType;
 	
-	public JOperation(JType owner, String name) {
+	public JOperation(JType owner, String name, JType ... params) {
 		super(name);
 		checkNotNull(owner);
+		checkNotNull(name);
 		this.owner = owner;
 		owner.addOperation(this);
 		visibility = Visibility.PUBLIC;
 		isAbstract = false;
 		isStatic = false;
+		this.params = new ArrayList<>(params.length);
+		for(JType p : params) {
+			checkNotNull(p);
+			this.params.add(p);
+		}
+		
+		deps = new HashSet<>();
 	}
 	
 	public JType getOwner() {
@@ -34,6 +47,11 @@ public class JOperation extends NamedElement {
 		return visibility;
 	}
 
+	public void setVisibility(Visibility v) {
+		checkNotNull(v);
+		visibility = v;
+	}
+	
 	public boolean isAbstract() {
 		return isAbstract;
 	}
@@ -42,15 +60,25 @@ public class JOperation extends NamedElement {
 		return isStatic;
 	}
 	
+	public void addDependency(JOperation o) {
+		checkNotNull(o);
+		deps.add(o);
+	}
+	
+	public Set<JOperation> getDependencies() {
+		return Collections.unmodifiableSet(deps);
+	}
 	JOperation copyTo(JType type) {
+		// TODO copy deps
 		JOperation op = new JOperation(type, getName());
 		op.visibility = visibility;
 		op.isAbstract = isAbstract;
 		op.isStatic = isStatic;
-//		op.params = ne
 		op.returnType = returnType;
 		return op;
 	}
+	
+	
 	// TODO
 	@Override
 	boolean equalsInternal(Object obj) {
@@ -64,7 +92,7 @@ public class JOperation extends NamedElement {
 	
 	@Override
 	public String toString() {
-		return visibility.symbol() + " " + getName() + "(...)";
+		return owner.getName() + "." + getName() + "(...)";
 	}
 }
 

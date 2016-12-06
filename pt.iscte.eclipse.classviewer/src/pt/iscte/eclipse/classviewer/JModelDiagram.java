@@ -14,7 +14,8 @@ public class JModelDiagram {
 	}
 	
 	public static void clearDiagram() {
-		JModelViewer.getInstance().clear();
+		//TODO clear
+		//		JModelViewer.getInstance().clear();
 	}
 	
 	public static void addListener(DiagramListener listener) {

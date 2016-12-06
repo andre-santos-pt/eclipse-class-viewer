@@ -69,9 +69,20 @@ public  abstract class JType extends StereotypedElement implements Iterable<JOpe
 		dependencies.add(type);
 	}
 	
-	public Iterable<JType> getDependencies() {
-		return Collections.unmodifiableList(dependencies);
+	public List<Dependency> getDependencies(JType target) {
+		ArrayList<Dependency> deps = new ArrayList<>();
+		dependencies.stream()
+		.filter((d) -> !d.equals(this) && d.equals(target))
+		.forEach((d) -> deps.add(new Dependency(this, d, Dependency.Kind.ATTRIBUTE)));
+		
+//		GroupedDependency
+		operations.forEach((o) -> o.getDependencies().stream()
+				.filter((d) -> !d.equals(this) && d.getOwner().equals(target))
+				.forEach((d) -> deps.add(new CallDependency(o, d))));
+		return deps;
 	}
+	
+	
 //	public Iterable<MMethod> getOperations() {
 //		return Collections.unmodifiableList(operations);
 //	}
@@ -92,6 +103,15 @@ public  abstract class JType extends StereotypedElement implements Iterable<JOpe
 
 	public boolean isClass() {
 		return getClass().equals(JClass.class);
+	}
+	
+	// TODO params
+	public JOperation getOperation(String name) {
+		for(JOperation o : operations)
+			if(o.getName().equals(name))
+				return o;
+		
+		return null;
 	}
 	
 	public void merge(JType type) {

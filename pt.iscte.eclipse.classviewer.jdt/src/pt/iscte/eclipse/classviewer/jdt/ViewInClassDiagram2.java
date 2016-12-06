@@ -3,14 +3,11 @@ package pt.iscte.eclipse.classviewer.jdt;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 
 import org.eclipse.core.resources.IFile;
-import org.eclipse.core.runtime.IPath;
 import org.eclipse.jdt.core.Flags;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IField;
@@ -26,7 +23,12 @@ import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.ASTVisitor;
+import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.FieldDeclaration;
+import org.eclipse.jdt.core.dom.ITypeBinding;
+import org.eclipse.jdt.core.dom.MethodDeclaration;
+import org.eclipse.jdt.core.dom.MethodInvocation;
+import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -38,13 +40,11 @@ import org.eclipse.ui.ide.IDE;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import pt.iscte.eclipse.classviewer.DiagramListener;
-import pt.iscte.eclipse.classviewer.DiagramListener.Event;
 import pt.iscte.eclipse.classviewer.JModelDiagram;
 import pt.iscte.eclipse.classviewer.model.JClass;
 import pt.iscte.eclipse.classviewer.model.JInterface;
 import pt.iscte.eclipse.classviewer.model.JModel;
 import pt.iscte.eclipse.classviewer.model.JOperation;
-import pt.iscte.eclipse.classviewer.model.JPackage;
 import pt.iscte.eclipse.classviewer.model.JType;
 import pt.iscte.eclipse.classviewer.model.Stereotype;
 
@@ -78,10 +78,9 @@ public class ViewInClassDiagram2 implements IObjectActionDelegate {
 			e.printStackTrace();
 		}
 		JModelDiagram.display(model);
-
 		if(handler != null)
 			JModelDiagram.removeListener(handler);
-
+		//		handler = new Listener(classes);
 		JModelDiagram.addListener(handler);
 
 	}
@@ -118,9 +117,9 @@ public class ViewInClassDiagram2 implements IObjectActionDelegate {
 		handleExtends(classes, model);
 		handleImplements(classes, model);
 		handleDependencies(classes, model);
-		
+
 		for(IType t : classes.values()) {
-			
+
 			if(!t.isInterface())
 				handleAssociations(t, model);
 		}
@@ -187,8 +186,8 @@ public class ViewInClassDiagram2 implements IObjectActionDelegate {
 						model.addType(interfaceType);
 					}
 				}
-			
-				
+
+
 			}
 		}
 	}
@@ -206,8 +205,8 @@ public class ViewInClassDiagram2 implements IObjectActionDelegate {
 		}
 		return null;
 	}
-	
-	
+
+
 	private void handleImplements(Map<JType, IType> classes, JModel model)  {
 
 
@@ -219,20 +218,45 @@ public class ViewInClassDiagram2 implements IObjectActionDelegate {
 			final JType t = e.getKey();
 			ASTParser parser = ASTParser.newParser(AST.JLS8);
 			parser.setSource(e.getValue().getCompilationUnit());
+			parser.setResolveBindings(true);
 			ASTNode root = parser.createAST(null);
 			root.accept(new ASTVisitor() {
 				@Override
 				public boolean visit(FieldDeclaration node) {
 					String tName = resolve(it, node.getType().toString());
-					if(tName == null)
-						System.out.println("NULL: " + node.getType());
-					else {
-						JType dep = model.getType(tName);
-						if(dep != null && !t.equals(dep))
-							t.addDependency(dep);
+					JType dep = model.getType(tName);
+					if(dep != null && !t.equals(dep))
+						t.addDependency(dep);
+					return true;
+				}
+
+				public boolean visit(MethodInvocation inv) {
+					ASTNode parent = inv.getParent();
+					while(!(parent instanceof MethodDeclaration) && parent != null) {
+						parent = parent.getParent();
+					}
+					if(parent instanceof MethodDeclaration) {
+						String callerMethodName = ((MethodDeclaration) parent).getName().getFullyQualifiedName();
+						Expression exp = inv.getExpression();
+						if(exp instanceof SimpleName) {
+							ITypeBinding typeBinding = ((SimpleName) exp).resolveTypeBinding();
+							if(typeBinding != null) {
+								String targetTypeName = resolve(it, typeBinding.isParameterizedType() ? typeBinding.getErasure().getName() : typeBinding.getName());
+								JType targetType = model.getType(targetTypeName);
+								if(targetType != null && !t.equals(targetType)) {
+									JOperation sourceOperation = t.getOperation(callerMethodName);
+									JOperation targetOperation = targetType.getOperation(inv.getName().getFullyQualifiedName());
+									if(sourceOperation != null && targetOperation != null) {
+										sourceOperation.addDependency(targetOperation);
+										System.out.println(sourceOperation + " :== " + targetOperation);
+									}
+								}
+							}
+						}
 					}
 					return true;
 				}
+
 			});
 		}
 	}

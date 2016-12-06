@@ -94,6 +94,14 @@ public final class JClass extends JType {
 		return !supertypes.isEmpty();
 	}
 
+	@Override
+	public List<Dependency> getDependencies(JType target) {
+		List<Dependency> deps = super.getDependencies(target);
+		if(target.equals(superclass))
+			deps.add(Dependency.ofInheritance(this, superclass));
+		return deps;
+	}
+	
 	public Iterable<JInterface> getInterfaces() {
 		return Collections.unmodifiableSet(supertypes);
 	}

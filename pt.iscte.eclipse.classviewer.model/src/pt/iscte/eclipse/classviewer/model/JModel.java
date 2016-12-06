@@ -42,6 +42,10 @@ public class JModel implements Iterable<JType>, Serializable {
 		packages.add(pkg);
 	}
 	
+	public Collection<JType> getTypes() {
+		return Collections.unmodifiableCollection(types.values());
+	}
+	
 	
 	@Override
 	public Iterator<JType> iterator() {

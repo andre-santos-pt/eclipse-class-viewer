@@ -1,13 +1,3 @@
-/*******************************************************************************
- * Copyright 2005-2007, CHISEL Group, University of Victoria, Victoria, BC,
- * Canada. All rights reserved. This program and the accompanying materials are
- * made available under the terms of the Eclipse Public License v1.0 which
- * accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- * 
- * Contributors: The Chisel Group, University of Victoria
- ******************************************************************************/
-//MODIFIED
 package pt.iscte.eclipse.classviewer.view;
 
 import java.util.HashMap;
@@ -62,11 +52,15 @@ public class UMLClassFigure extends Figure {
 		methodsCompartment = new CompartmentFigure();
 		add(methodsCompartment);
 
-		setSize();
+		
 
 		this.type = type;
 		operations = new HashSet<JOperation>();
 		operationLabels = new HashMap<Label, JOperation>();
+		
+		addOperations(type);
+		setSize(-1, -1);
+//		setSize(200,200);
 	}
 
 	public JType getJType() {
@@ -80,10 +74,6 @@ public class UMLClassFigure extends Figure {
 	
 	public void unselect() {
 		setBackgroundColor(CLASS_COLOR);
-	}
-	
-	private void setSize() {
-		setSize(-1, -1);
 	}
 
 	private CompartmentFigure getMethodsCompartment() {
@@ -198,14 +188,8 @@ public class UMLClassFigure extends Figure {
 
 		return builder.toString();
 	}
-	//######################################################
-	//######################################################
 
-	//------------------------------------------------------
-	//------------------------------------------------------
-	//					COMMON METHODS
-	//------------------------------------------------------
-	//------------------------------------------------------
+	
 	private Label createLabel(String text, Font font) {
 		Label label = new Label(text);
 		label.setFont(font);
@@ -218,8 +202,5 @@ public class UMLClassFigure extends Figure {
 		toolTipLabel.setOpaque(true);
 		return toolTipLabel;
 	}
-	//######################################################
-	//######################################################
-
 	
 }
