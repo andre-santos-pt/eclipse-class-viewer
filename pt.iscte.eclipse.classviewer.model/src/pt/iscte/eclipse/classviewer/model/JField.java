@@ -7,13 +7,15 @@ public final class JField extends StereotypedElement {
 	
 	private final JClass owner;
 	private final JType type;
+	private final Cardinality cardinality;
 	private Visibility visibility;
 	
-	public JField(JClass owner, String name, JType type) {
+	public JField(JClass owner, String name, JType type, Cardinality cardinality) {
 		super(name);
 		checkNotNull(owner, name, type);
 		this.owner = owner;
 		this.type = type;
+		this.cardinality = cardinality;
 		visibility = Visibility.PRIVATE;
 		owner.addField(this);
 	}
@@ -22,8 +24,16 @@ public final class JField extends StereotypedElement {
 		return type;
 	}
 	
+	public Cardinality getCardinality() {
+		return cardinality;
+	}
+	
 	public Visibility getVisibility() {
 		return visibility;
+	}
+	
+	public JClass getOwner() {
+		return owner;
 	}
 	
 	

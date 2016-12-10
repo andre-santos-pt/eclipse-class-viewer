@@ -13,11 +13,10 @@ public interface DiagramListener {
 	
 	void operationEvent(JOperation operation, Event event);
 	
-	void associationEvent(Association association, Event event);
+	void dependencyEvent(Association association, Event event);
 	
 	enum Event {
 		ADD,
-		CLEAR,
 		SELECT,
 		DOUBLE_CLICK;
 	}
@@ -26,7 +25,7 @@ public interface DiagramListener {
 		public void diagramEvent(JModel model, Event event) { }
 		public void classEvent(JType type, Event event) { }
 		public void operationEvent(JOperation operation, Event event) { }
-		public void associationEvent(Association association, Event event) { }
+		public void dependencyEvent(Association association, Event event) { }
 	}
 	
 	public static class EventFilter implements DiagramListener {
@@ -60,9 +59,9 @@ public interface DiagramListener {
 		}
 
 		@Override
-		public void associationEvent(Association association, Event event) {
+		public void dependencyEvent(Association association, Event event) {
 			if(event.equals(this.event))
-				listener.associationEvent(association, event);
+				listener.dependencyEvent(association, event);
 		}
 		
 	}
@@ -89,7 +88,7 @@ public interface DiagramListener {
 		}
 
 		@Override
-		public void associationEvent(Association association, Event event) {
+		public void dependencyEvent(Association association, Event event) {
 			
 		}
 	}

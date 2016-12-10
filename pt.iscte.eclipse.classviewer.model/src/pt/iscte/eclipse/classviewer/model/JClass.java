@@ -14,36 +14,36 @@ public final class JClass extends JType {
 	
 	private boolean isAbstract;
 	private JClass superclass;
-	private Set<JInterface> supertypes;
 	private List<JField> fields;
 	private Set<Association> associations;
 	
 	public JClass(String name) {
+		this(name, false);
+	}
+	public JClass(String name, boolean isAbstract) {
 		super(name);
-		isAbstract = false;
+		this.isAbstract = isAbstract;
 		superclass = null;
-		supertypes = Collections.emptySet();
 		fields = Collections.emptyList();
 		associations = Collections.emptySet();
 	}
 	
-	public static JClass create(String name) {
-		JClass c = new JClass(name);
-		return c;
+	public List<JField>  getFields() {
+		return Collections.unmodifiableList(fields);
 	}
 	
-	public JClass setAbstract(boolean isAbstract) {
-		this.isAbstract = isAbstract;
-		return this;
-	}
+//	public JClass setAbstract(boolean isAbstract) {
+//		this.isAbstract = isAbstract;
+//		return this;
+//	}
 	
 	public JClass setSuperclass(JClass superclass) {
 		this.superclass = superclass;
 		return this;
 	}
 	
-	public JClass addStereotype(Stereotype stereotype) {
-		addStereotypeInternal(stereotype);
+	public JClass addStereotype(String stereotypeName) {
+		addStereotypeInternal(new Stereotype(stereotypeName));
 		return this;
 	}
 	
@@ -58,16 +58,6 @@ public final class JClass extends JType {
 			fields = new ArrayList<JField>(5);
 		
 		fields.add(field);
-	}
-	
-	
-	public void addInterface(JInterface type) {
-		checkNotNull(type);
-		if(supertypes.isEmpty())
-			supertypes = new HashSet<JInterface>(3);
-		
-		supertypes.add(type);
-		
 	}
 	
 	void addAssociation(Association a) {
@@ -90,32 +80,28 @@ public final class JClass extends JType {
 		return superclass;
 	}
 	
-	public boolean implementsInterfaces() {
-		return !supertypes.isEmpty();
-	}
+	
 
 	@Override
 	public List<Dependency> getDependencies(JType target) {
 		List<Dependency> deps = super.getDependencies(target);
 		if(target.equals(superclass))
-			deps.add(Dependency.ofInheritance(this, superclass));
+			deps.add(Dependency.ofInheritance(this, target));
+		
+		for(JField f : fields)
+			if(f.getType().equals(target) && !f.hasProperty("VALUE_TYPE"))
+				deps.add(new FieldDependency(this, target, Cardinality.one()));
 		return deps;
 	}
 	
-	public Iterable<JInterface> getInterfaces() {
-		return Collections.unmodifiableSet(supertypes);
-	}
+	
+	
 
 	public Iterable<Association> getAssociations() {
 		return Collections.unmodifiableSet(associations);
 	}
 
-	@Override
-	void internalMerge(JType type) {
-		JClass ctype = (JClass) type;
-		// merge fields
-		
-	}
+	
 
 	public boolean compatibleWith(JClass clazz) {
 		JClass c = this;

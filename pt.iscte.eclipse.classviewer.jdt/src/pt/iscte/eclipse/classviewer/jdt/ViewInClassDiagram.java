@@ -1,29 +1,18 @@
 package pt.iscte.eclipse.classviewer.jdt;
 
-import java.io.File;
-import java.lang.reflect.Field;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import org.eclipse.core.resources.IFile;
-import org.eclipse.core.runtime.IPath;
-import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IJavaElement;
-import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IMethod;
-import org.eclipse.jdt.core.IPackageFragment;
 import org.eclipse.jdt.core.ISourceRange;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jface.action.IAction;
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.swt.widgets.Shell;
-import org.eclipse.ui.IActionDelegate;
 import org.eclipse.ui.IObjectActionDelegate;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchPart;
@@ -33,195 +22,82 @@ import org.eclipse.ui.texteditor.ITextEditor;
 
 import pt.iscte.eclipse.classviewer.DiagramListener;
 import pt.iscte.eclipse.classviewer.JModelDiagram;
-import pt.iscte.eclipse.classviewer.model.Association;
-import pt.iscte.eclipse.classviewer.model.JClass;
-import pt.iscte.eclipse.classviewer.model.JInterface;
-import pt.iscte.eclipse.classviewer.model.JModel;
 import pt.iscte.eclipse.classviewer.model.JOperation;
 import pt.iscte.eclipse.classviewer.model.JType;
-import pt.iscte.eclipse.classviewer.model.reflection.JModelReflection;
 
 public class ViewInClassDiagram implements IObjectActionDelegate {
 
-	private Shell shell;
-	private IStructuredSelection selection;
-	private DiagramListener handler;
+	private List<IJavaElement> selection = new ArrayList<>();
 
-	/**
-	 * @see IObjectActionDelegate#setActivePart(IAction, IWorkbenchPart)
-	 */
 	public void setActivePart(IAction action, IWorkbenchPart targetPart) {
-		shell = targetPart.getSite().getShell();
+
 	}
 
-	/**
-	 * @see IActionDelegate#run(IAction)
-	 */
+	public void selectionChanged(IAction action, ISelection s) {
+		selection.clear();
+		if(s instanceof IStructuredSelection) {
+			for(Object obj : ((IStructuredSelection) s).toList())
+				if(obj instanceof IJavaElement)
+					selection.add((IJavaElement) obj);
+		}
+	}
+
 	public void run(IAction action) {
-		if(selection == null || selection.isEmpty())
+		if(selection.isEmpty())
 			return;
-
+		ModelBuilder.Result res = null;
 		try {
-			final IJavaProject proj = ((IJavaElement) selection.getFirstElement()).getJavaProject();
-			IPath p = proj.getCorrespondingResource().getLocation();
-			URL url = new File(p.toString() + File.separator + proj.getOutputLocation().lastSegment()).toURI().toURL(); // execution path
-			URL[] urls = {url}; 
-			URLClassLoader classLoader = new URLClassLoader(urls); 
-
-			JModel model = new JModel();
-
-			List<Class<?>> classes = new ArrayList<Class<?>>();
-			for(Object obj : selection.toArray()) {
-				IJavaElement o = (IJavaElement) obj;
-
-				if(o instanceof ICompilationUnit) {
-					classes.add(handleCompilationUnit((ICompilationUnit) o, classLoader, model));
-				}
-				else if(o instanceof IPackageFragment) {
-					IPackageFragment pack = (IPackageFragment) o;
-					for(ICompilationUnit u : pack.getCompilationUnits())
-						classes.add(handleCompilationUnit(u, classLoader, model));
-				}
-			}
-			
-			for(Class<?> c : classes)
-				if(!c.isInterface())
-					handleAssociations(c, model);
-			
-			JModelDiagram.display(model);
-
-			if(handler != null)
-				JModelDiagram.removeListener(handler);
-
-			handler = new DiagramListener.Adapter() {
-				@Override
-				public void operationEvent(JOperation op, Event event) {
-					IType t = null;
-					try {
-						t = proj.findType(op.getOwner().getQualifiedName());
-						IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
-						ITextEditor editor = (ITextEditor) IDE.openEditor(page, (IFile) t.getResource());
-						for(IMethod im : t.getMethods()) {
-							if(im.getElementName().equals(op.getName())) {
-								ISourceRange range =  im.getNameRange();
-								editor.selectAndReveal(range.getOffset(), range.getLength());
-							}
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
-					} 
-				}
-
-				@Override
-				public void classEvent(JType type, Event event) {
-					IType t = null;
-					try {
-						t = proj.findType(type.getQualifiedName());
-						IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
-						ITextEditor editor = (ITextEditor) IDE.openEditor(page, (IFile) t.getResource());
-						ISourceRange range =  t.getNameRange();
-						editor.selectAndReveal(range.getOffset(), range.getLength());
-					} catch (Exception e) {
-						e.printStackTrace();
-					} 
-				}
-			};
-			JModelDiagram.removeListener(handler);
-
-		} catch (Exception e) {
+			res = ModelBuilder.buildModel(selection);
+		}
+		catch(Exception e) {
+			MessageDialog.openError(null, "Error", "Could not load classes");
 			e.printStackTrace();
+			return;
 		}
+		new JModelDiagram(res.model)
+		.withListener(new Listener(res.classes))
+		.display();
 	}
 
+	private class Listener extends DiagramListener.Adapter {
+		private final Map<JType, IType> classes;
 
-	private Class<?> handleCompilationUnit(ICompilationUnit unit, URLClassLoader classLoader,
-			JModel model)
-					throws ClassNotFoundException {
+		Listener(Map<JType, IType> classes) {
+			this.classes = classes;
+		}
 
-		IType t = unit.findPrimaryType();
-		Class<?> c = classLoader.loadClass(t.getFullyQualifiedName());
-
-		if(c.isInterface()) {
-			JInterface ji = JModelReflection.createInterface(c);
-			model.addType(ji);
-			for(Class<?> i : c.getInterfaces()) {
-				JInterface si = JModelReflection.createInterface(i);
-				ji.addSupertype(si);
+		@Override
+		public void operationEvent(JOperation op, Event event) {
+			if(event.equals(Event.DOUBLE_CLICK)) {
+				IType t = classes.get(op.getOwner());
+				try {
+					IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+					ITextEditor editor = (ITextEditor) IDE.openEditor(page, (IFile) t.getResource());
+					for(IMethod im : t.getMethods()) {
+						if(im.getElementName().equals(op.getName())) {
+							ISourceRange range =  im.getNameRange();
+							editor.selectAndReveal(range.getOffset(), range.getLength());
+						}
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
+				} 
 			}
 		}
-		else {
-			JClass jc = JModelReflection.createClass(c);
-			model.addType(jc);
-			if(!c.getSuperclass().equals(Object.class)) {
-				JClass superclass = JModelReflection.createClass(c.getSuperclass());
-				model.addType(superclass);
-				jc.setSuperclass(superclass);
-			}
-			for(Class<?> i : c.getInterfaces()) {
-				JInterface si = JModelReflection.createInterface(i);
-				jc.addInterface(si);
+
+		@Override
+		public void classEvent(JType type, Event event) {
+			if(event.equals(Event.DOUBLE_CLICK)) {
+				IType t = classes.get(type);
+				try {
+					IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+					ITextEditor editor = (ITextEditor) IDE.openEditor(page, (IFile) t.getResource());
+					ISourceRange range =  t.getNameRange();
+					editor.selectAndReveal(range.getOffset(), range.getLength());
+				} catch (Exception e) {
+					e.printStackTrace();
+				} 
 			}
 		}
-		return c;
 	}
-
-	private void handleAssociations(Class<?> clazz, JModel model) {
-		 JClass jc = (JClass) model.getType(clazz.getName());
-		 
-		for(Field field: clazz.getDeclaredFields()) {
-
-			if(field.isSynthetic()) continue;
-
-			Class<?> fieldType = field.getType();
-			
-			if(Collection.class.isAssignableFrom(fieldType)) { //Collection field
-				Type genericFieldType = field.getGenericType();
-
-				if(!ParameterizedType.class.isAssignableFrom(genericFieldType.getClass())) continue; //If the collection does not have a parametrized type
-
-				Type aux = ((ParameterizedType)genericFieldType).getActualTypeArguments()[0];
-
-				if(!Class.class.isAssignableFrom(aux.getClass())) continue; //If the parametrized type is not a class type, i.e., Collection<Collection<Type>>
-
-				Class<?> actualFieldType = (Class<?>)aux;
-
-				if(actualFieldType.isArray()) continue; //If the parametrized type is an array
-
-				new Association(jc, model.getType(actualFieldType.getName()), false);
-	
-//				if(set.contains(actualFieldType)) {
-					//createMultipleConnection(clazz, actualFieldType, field);
-//				}
-			}
-			else if(fieldType.isArray()) { //Array field
-				Class<?> componentFieldType = fieldType.getComponentType();
-
-				if(componentFieldType.isArray()) continue; //If the component type of the array is another array
-
-//				if(set.contains(componentFieldType)) {
-					//createMultipleConnection(clazz, componentFieldType, field);
-//				}
-				new Association(jc, model.getType(componentFieldType.getName()), false);
-			}
-			else if(model.getType(fieldType.getName()) != null) { //Class field
-//				if(set.contains(fieldType)) {
-					//createSimpleConnection(clazz, fieldType, field);
-//				}
-				new Association(jc, model.getType(fieldType.getName()), true);
-			}
-
-		}
-	}
-
-
-	/**
-	 * @see IActionDelegate#selectionChanged(IAction, ISelection)
-	 */
-	public void selectionChanged(IAction action, ISelection selection) {
-		if(selection instanceof IStructuredSelection)
-			this.selection = (IStructuredSelection) selection;
-		else
-			this.selection = null;
-	}
-
 }

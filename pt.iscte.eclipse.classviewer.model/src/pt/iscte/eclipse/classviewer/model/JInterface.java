@@ -26,8 +26,8 @@ public final class JInterface extends JType {
 		return Collections.unmodifiableSet(supertypes);
 	}
 	
-	public JInterface addStereotype(Stereotype stereotype) {
-		addStereotypeInternal(stereotype);
+	public JInterface addStereotype(String stereotypeName) {
+		addStereotypeInternal(new Stereotype(stereotypeName));
 		return this;
 	}
 	

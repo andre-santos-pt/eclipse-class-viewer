@@ -9,7 +9,7 @@ public class GroupedDependency extends Dependency {
 	private Map<JOperation, JOperation> callMap;
 	
 	public GroupedDependency(JType source, JType target) {
-		super(source, target, Dependency.Kind.METHOD);
+		super(source, target, Dependency.Kind.CALL);
 		callMap = new HashMap<JOperation, JOperation>();
 	}
 

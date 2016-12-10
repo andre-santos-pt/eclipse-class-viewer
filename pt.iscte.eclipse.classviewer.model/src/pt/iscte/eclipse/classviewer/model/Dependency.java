@@ -2,7 +2,7 @@ package pt.iscte.eclipse.classviewer.model;
 
 public class Dependency {
 	public enum Kind {
-		INHERITANCE, INTERFACE, METHOD, ATTRIBUTE;
+		INHERITANCE, INTERFACE, CALL, FIELD;
 	}
 	
 	private final JType source;
@@ -20,6 +20,14 @@ public class Dependency {
 		return new Dependency(source, target, Kind.INHERITANCE);
 	}
 
+	public static Dependency ofInterface(JType source, JType target) {
+		return new Dependency(source, target, Kind.INTERFACE);
+	}
+	
+	public static Dependency ofField(JType source, JType target) {
+		return new Dependency(source, target, Kind.FIELD);
+	}
+	
 	public Kind getKind() {
 		return kind;
 	}
@@ -36,4 +44,6 @@ public class Dependency {
 	public JType getTargetType() {
 		return target;
 	}
+
+	
 }

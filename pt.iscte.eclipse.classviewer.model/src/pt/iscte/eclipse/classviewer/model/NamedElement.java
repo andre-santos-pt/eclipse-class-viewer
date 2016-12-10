@@ -39,6 +39,10 @@ public abstract class NamedElement implements Serializable {
 		return props.containsKey(key);
 	}
 	
+	public void setTagProperty(String key) {
+		setProperty(key, key);
+	}
+	
 	public void setProperty(String key, String value) {
 		checkNotNull(key);
 		checkNotNull(value);
@@ -49,6 +53,9 @@ public abstract class NamedElement implements Serializable {
 		props.put(key, value);
 	}
 	
+	public Map<String, String> getProperties() {
+		return Collections.unmodifiableMap(props);
+	}
 	
 	@Override
 	public final boolean equals(Object obj) {

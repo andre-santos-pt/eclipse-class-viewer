@@ -46,6 +46,27 @@ public class JModel implements Iterable<JType>, Serializable {
 		return Collections.unmodifiableCollection(types.values());
 	}
 	
+	public List<JType> sortedTypes() {
+		List<JType> list = new ArrayList<>(types.values());
+		list.sort(new Comparator<JType>() {
+			public int compare(JType a, JType b) {
+				if(a instanceof JClass && b instanceof JClass) {
+					JClass aa = (JClass) a;
+					JClass bb = (JClass) b;
+					if(aa.compatibleWith(bb))
+						return -1;
+					else if(bb.compatibleWith(aa))
+						return 1;
+					else
+						return 0;
+				}
+				else
+					return 0;
+			};
+		});
+		return list;
+	}
+	
 	
 	@Override
 	public Iterator<JType> iterator() {
@@ -73,7 +94,7 @@ public class JModel implements Iterable<JType>, Serializable {
 		return Collections.unmodifiableSet(packages).iterator();
 	}
 	
-	public Iterator<JClass> classes() {
+	public Iterator<JClass> getClasses() {
 		
 		return new Iterator<JClass>() {
 			
@@ -137,23 +158,7 @@ public class JModel implements Iterable<JType>, Serializable {
 		return types.containsKey(qualifiedName);
 	}
 	
-	public Collection<JType> merge(JModel model) {
-		Collection<JType> excluded = new ArrayList<JType>();
-		for(JType ft : model) {
-			String qName = ft.getQualifiedName();
-			if(hasType(qName)) {
-				JType t = getType(qName);
-				if(t.equals(ft))
-					t.merge(ft);
-				else
-					excluded.add(ft);
-			}
-			else {
-				addType(ft);
-			}
-		}
-		return excluded;
-	}
+	
 	
 	@Override
 	public String toString() {
@@ -172,5 +177,7 @@ public class JModel implements Iterable<JType>, Serializable {
 	public String getCommonSubPackageName() {
 		return "";
 	}
+	
+
 
 }

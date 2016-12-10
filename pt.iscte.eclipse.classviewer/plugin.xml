@@ -25,6 +25,12 @@
                style="push"
                tooltip="Clear all">
          </command>
+         <command
+               commandId="org.eclipselabs.jmodeldiagram.view.saveImage"
+               icon="icons/class.png"
+               label="Save as PNG"
+               style="push">
+         </command>
       </menuContribution>
    </extension>
    <extension
@@ -33,6 +39,11 @@
             defaultHandler="pt.iscte.eclipse.classviewer.view.ClearContentHandler"
             id="org.eclipselabs.jmodeldiagram.view.clear"
             name="Clear Content">
+      </command>
+      <command
+            defaultHandler="pt.iscte.eclipse.classviewer.view.SaveAsImage"
+            id="org.eclipselabs.jmodeldiagram.view.saveImage"
+            name="Save as Image">
       </command>
    </extension>
 

@@ -11,7 +11,7 @@ public class ClearContentHandler extends AbstractHandler {
 
 	
 	public Object execute(ExecutionEvent event) throws ExecutionException {
-		JModelDiagram.clearDiagram();
+		JModelViewer.getInstance().clear();
 		return null;
 	}
 
