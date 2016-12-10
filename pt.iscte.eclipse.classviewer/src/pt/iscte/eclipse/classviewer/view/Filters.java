@@ -64,6 +64,15 @@ class Filters {
 	};
 
 
+	static class IgnoreFilter extends ViewerFilter {
+		
+		@Override
+		public boolean select(Viewer viewer, Object parentElement, Object element) {
+			// TODO Auto-generated method stub
+			return false;
+		}
+	}
+	
 	static final ViewerFilter[] FILTERS = {
 			DEPS, 
 			NO_CALLS, 

@@ -1,6 +1,7 @@
 package pt.iscte.eclipse.classviewer.jdt;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -28,12 +29,10 @@ import org.eclipse.jdt.core.dom.ITypeBinding;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.SimpleName;
+import org.eclipse.jdt.core.dom.TypeDeclaration;
 import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 
-import pt.iscte.eclipse.classviewer.model.Association;
 import pt.iscte.eclipse.classviewer.model.Cardinality;
-import pt.iscte.eclipse.classviewer.model.Dependency;
-import pt.iscte.eclipse.classviewer.model.FieldDependency;
 import pt.iscte.eclipse.classviewer.model.JClass;
 import pt.iscte.eclipse.classviewer.model.JField;
 import pt.iscte.eclipse.classviewer.model.JInterface;
@@ -45,7 +44,7 @@ public class ModelBuilder {
 	public static final String TAG_UNUSED = "UNUSED";
 	public static final String TAG_EXTERNAL = "EXTERNAL";
 	public static final String TAG_EXTERNAL_DEPENDENCY = "EXTERNAL_DEPENDENCY";
-	protected static final String TAG_VALUE_TYPE = "VALUE_TYPE";
+	public static final String TAG_VALUE_TYPE = "VALUE_TYPE";
 
 	static class Result {
 		JModel model;
@@ -124,15 +123,14 @@ public class ModelBuilder {
 	private static JType handleCompilationUnit(ICompilationUnit unit, JModel model)
 			throws Exception {
 		IType t = unit.findPrimaryType();
-		JType type = t.isInterface() ? 
-				new JInterface(t.getFullyQualifiedName()) : 
-					new JClass(t.getFullyQualifiedName(), Flags.isAbstract(t.getFlags()));
-				model.addType(type);
+		JType type = t.isInterface() ? new JInterface(t.getFullyQualifiedName()) : new JClass(t.getFullyQualifiedName(), Flags.isAbstract(t.getFlags()));
+		model.addType(type);
+		if(t.isEnum())
+			type.setTagProperty(TAG_VALUE_TYPE);
+		for(IMethod m : t.getMethods())
+			new JOperation(type, m.getElementName());
 
-				for(IMethod m : t.getMethods())
-					new JOperation(type, m.getElementName());
-
-				return type;
+		return type;
 	}
 
 
@@ -190,35 +188,60 @@ public class ModelBuilder {
 			parser.setSource(e.getValue().getCompilationUnit());
 			parser.setResolveBindings(true);
 			ASTNode root = parser.createAST(null);
+		
 			root.accept(new ASTVisitor() {
 				@Override
 				public boolean visit(FieldDeclaration node) {
-					if(t.isClass()) {
+					if(t.isClass() && node.getParent() instanceof TypeDeclaration) {
+						VariableDeclarationFragment var = (VariableDeclarationFragment) node.fragments().get(0);
+						ITypeBinding tBind = node.getType().resolveBinding();
+						boolean isCollection = tBind == null ? false : isCollection(tBind);
+
 						String tName = resolve(it, node.getType().toString());
 						JType dep = model.getType(tName);
+						if(isCollection && tBind != null) {
+							if(tBind.isParameterizedType()) {
+								for(ITypeBinding ta : tBind.getTypeArguments()){
+									String qName = qualifiedNameWithoutGenerics(ta.getQualifiedName());
+									dep = model.getType(qName);
+								}
+							}
+						}
+
 						if(dep == null) {
 							dep = new JClass(tName);
 							dep.setTagProperty(TAG_EXTERNAL);
+							if(node.getType().isPrimitiveType() || tName.equals(String.class.getName()) || (tBind != null && tBind.isEnum()))
+								dep.setTagProperty(TAG_VALUE_TYPE);
 							model.addType(dep);
 						}
-						VariableDeclarationFragment var = (VariableDeclarationFragment) node.fragments().get(0);
-						
+
 						Cardinality card = Cardinality.zeroOne();
-						if(node.getType().isArrayType())
+						if(isCollection || node.getType().isArrayType())
 							card = Cardinality.zeroMany();
-						JField f = new JField((JClass) t, var.getName().toString(), dep, card);
-						
-						if(node.getType().isPrimitiveType() || tName.equals(String.class.getName()))
-							f.setTagProperty(TAG_VALUE_TYPE);
-						
-//						if(dep != null && !t.equals(dep)) {
-//							t.addDependency(dep);
-							
-//							FieldDependency fDep = new FieldDependency((JClass) t, dep, Cardinality.zeroMany());
-//							t.add
-						
+
+						new JField((JClass) t, var.getName().toString(), dep, card);
+
+
 					}
 					return true;
+				}
+
+				private String qualifiedNameWithoutGenerics(String qName) {
+					int i = qName.indexOf('<');
+					return i == -1 ? qName : qName.substring(0, i);
+				}
+
+				private boolean isCollection(ITypeBinding t) {
+					String qName = qualifiedNameWithoutGenerics(t.getQualifiedName());
+					if(qName.equals(Collection.class.getName()) || qName.equals(Map.class.getName()))
+						return true;
+					else
+						for(ITypeBinding si : t.getInterfaces())
+							if(isCollection(si))
+								return true;
+					return false;
+
 				}
 
 				public boolean visit(MethodInvocation inv) {

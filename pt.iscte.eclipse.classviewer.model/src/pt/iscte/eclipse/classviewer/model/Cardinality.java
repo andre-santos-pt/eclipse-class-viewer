@@ -38,6 +38,10 @@ public class Cardinality {
 		return new Cardinality(1, upperBound);
 	}
 	
+	public boolean isUnary() {
+		return upperBound == 1;
+	}
+	
 	@Override
 	public String toString() {
 		if(lowerBound == 0 && upperBound == 1)
@@ -50,5 +54,30 @@ public class Cardinality {
 			return "+";
 		else
 			return lowerBound + ".." + (upperBound == -1 ? "*" : upperBound);
+	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + lowerBound;
+		result = prime * result + upperBound;
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		Cardinality other = (Cardinality) obj;
+		if (lowerBound != other.lowerBound)
+			return false;
+		if (upperBound != other.upperBound)
+			return false;
+		return true;
 	}
 }

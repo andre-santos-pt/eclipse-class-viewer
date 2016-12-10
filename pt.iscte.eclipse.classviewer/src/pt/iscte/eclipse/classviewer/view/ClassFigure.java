@@ -66,8 +66,13 @@ public class ClassFigure extends Figure {
 		
 		if(type.isClass())
 			((JClass) type).getFields().forEach((f) -> {
-				if(f.hasProperty("VALUE_TYPE"))
-					fieldsCompartment.add(new Label("- " + f.getName() + " : " + f.getType().getName()));
+				if(f.getType().hasProperty("VALUE_TYPE")) {
+					Label label = new Label("- " + f.getName() + " : " + f.getType().getName());
+					label.setFont(METHOD_FONT);
+					label.setBorder(new MarginBorder(1));
+					fieldsCompartment.add(label);
+				}
+					
 			});
 		
 
@@ -185,17 +190,11 @@ public class ClassFigure extends Figure {
 	private void addMethodLabel(final JOperation operation) {
 		String text = operation.getVisibility().symbol() + " " + operation.getName() + "()";
 
-		Font font = null;
-
-		if(operation.isAbstract()) { //Abstract
-			font = ABSTRACT_METHOD_FONT;
-		}
-		else { //Method
-			font = METHOD_FONT;
-		}
+		Font font = operation.isAbstract() ? ABSTRACT_METHOD_FONT : METHOD_FONT;
 
 		Label methodLabel = createLabel(text, font);
 		methodLabel.setBorder(new MarginBorder(1));
+	
 		operationLabels.put(operation, methodLabel);
 		
 		String methodDesc = getMethodDescription(operation);
@@ -215,6 +214,7 @@ public class ClassFigure extends Figure {
 	private Label createLabel(String text, Font font) {
 		Label label = new Label(text);
 		label.setFont(font);
+		
 		return label;
 	}
 

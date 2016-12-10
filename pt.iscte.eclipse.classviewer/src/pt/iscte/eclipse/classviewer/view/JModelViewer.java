@@ -1,9 +1,9 @@
 package pt.iscte.eclipse.classviewer.view;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -14,6 +14,7 @@ import org.eclipse.draw2d.Label;
 import org.eclipse.draw2d.PolygonDecoration;
 import org.eclipse.draw2d.PolylineConnection;
 import org.eclipse.draw2d.PolylineDecoration;
+import org.eclipse.draw2d.geometry.PointList;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.LabelProvider;
@@ -28,12 +29,9 @@ import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.GC;
 import org.eclipse.swt.graphics.Image;
-import org.eclipse.swt.graphics.ImageData;
-import org.eclipse.swt.graphics.ImageLoader;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.ui.IActionBars;
@@ -56,10 +54,10 @@ import pt.iscte.eclipse.classviewer.DiagramListener.Event;
 import pt.iscte.eclipse.classviewer.model.CallDependency;
 import pt.iscte.eclipse.classviewer.model.Dependency;
 import pt.iscte.eclipse.classviewer.model.FieldDependency;
+import pt.iscte.eclipse.classviewer.model.JClass;
 import pt.iscte.eclipse.classviewer.model.JModel;
 import pt.iscte.eclipse.classviewer.model.JOperation;
 import pt.iscte.eclipse.classviewer.model.JType;
-import pt.iscte.eclipse.classviewer.model.NamedElement;
 
 public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 
@@ -82,7 +80,7 @@ public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 
 		@Override
 		public Object[] getElements(Object input) {
-			return ((JModel) input).sortedTypes().toArray();
+			return ((JModel) input).sortedTypes().stream().filter((t) -> !t.hasProperty("VALUE_TYPE")).toArray();
 		}
 
 		@Override
@@ -101,6 +99,29 @@ public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 			JType targetType = (JType) target;
 
 			List<Dependency> dependencies = sourceType.getDependencies(targetType);
+			Iterator<Dependency> iterator = dependencies.iterator();
+			while(iterator.hasNext()) {
+				Dependency d = iterator.next();
+				if(d instanceof FieldDependency && d.getTargetType().isClass()) {
+					FieldDependency fd = (FieldDependency) d;
+					if(fd.getCardinality().isUnary() && ((JClass) fd.getTargetType()).hasNonUnaryDependencyTo(fd.getSourceType()))
+						iterator.remove();
+				}
+			}
+			iterator = dependencies.iterator();
+			while(iterator.hasNext()) {
+				Dependency d = iterator.next();
+				if(d instanceof CallDependency) {
+					CallDependency cd = (CallDependency) d;
+					boolean remove = false;
+					for(Dependency d2 : dependencies)
+						if(d2 instanceof FieldDependency && ((FieldDependency) d2).getTargetType().equals(cd.getTargetType()))
+							remove = true;
+					
+					if(remove)
+						iterator.remove();
+				}
+			}
 			//			mergeCallDependencies(dependencies);
 			return dependencies.toArray();
 		}
@@ -130,8 +151,8 @@ public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 
 		@Override
 		public String getText(Object element) {
-			//			if(element instanceof Dependency && !((Dependency) element).getKind().equals(Dependency.Kind.INHERITANCE))
-			//				return ((Dependency) element).getKind().name();
+			if(element instanceof FieldDependency)
+				return ((FieldDependency) element).getFieldName();
 			return null;
 		}
 
@@ -173,7 +194,7 @@ public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 				decoration.setScale(20, 10);
 				decoration.setLineWidth(2);
 				decoration.setOpaque(true);
-				decoration.setBackgroundColor(Display.getDefault().getSystemColor(SWT.COLOR_WHITE));
+				decoration.setBackgroundColor(ColorConstants.white);
 				((PolylineConnection) connection.getConnectionFigure()).setTargetDecoration(decoration);
 				break;
 			}
@@ -185,12 +206,29 @@ public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 				break;
 			}
 			case FIELD: {
+				
 				FieldDependency dep = (FieldDependency) element;
-				PolylineDecoration decoration = new PolylineDecoration();
-				decoration.setScale(10, 5);
-				decoration.setLineWidth(2);
-				decoration.add(new Label(dep.toString()));
-				((PolylineConnection) connection.getConnectionFigure()).setTargetDecoration(decoration);				
+				if(dep.getCardinality().isUnary()) {
+					PolylineDecoration decoration = new PolylineDecoration();
+					decoration.setScale(10, 5);
+					decoration.setLineWidth(2);
+//					decoration.add(new Label(dep.toString()));
+					((PolylineConnection) connection.getConnectionFigure()).setTargetDecoration(decoration);
+				}
+				else {
+					PolygonDecoration decoration = new PolygonDecoration();
+					PointList points = new PointList();
+					points.addPoint(0,0);
+					points.addPoint(-2,2);
+					points.addPoint(-4,0);
+					points.addPoint(-2,-2);
+					decoration.setTemplate(points);
+					decoration.setScale(7, 3);
+					decoration.setLineWidth(2);
+					decoration.setOpaque(true);
+					decoration.setBackgroundColor(ColorConstants.white);
+					((PolylineConnection) connection.getConnectionFigure()).setSourceDecoration(decoration);
+				}
 				break;
 			}
 			}
@@ -316,21 +354,33 @@ public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 
 	private Set<ViewerFilter> filters = new HashSet<>();
 	private MenuItem excludeItem;
-
+	private MenuItem viewAsValueItem;
+	
 	private void createPopupMenu() {
 		Graph graph = viewer.getGraphControl();
 		Menu menu = new Menu(graph);
 
 		excludeItem = new MenuItem(menu, SWT.PUSH);
-		excludeItem.setText("Exclude");
+		excludeItem.setText("Ignore");
 		excludeItem.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
 				for (JType t : listener.getSelectedNodes()) {
 					viewer.removeNode(t);
-				}
-				
+				}	
 			}
 		});
+		
+		viewAsValueItem = new MenuItem(menu, SWT.PUSH);
+		viewAsValueItem.setText("View as Value Type");
+		viewAsValueItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				for (JType t : listener.getSelectedNodes()) {
+					t.setTagProperty("VALUE_TYPE");
+				}
+				displayModel((JModel) viewer.getInput(), false, listeners);
+			}
+		});
+		
 		createLayoutsMenu(menu);
 		createFiltersMenu(menu);
 

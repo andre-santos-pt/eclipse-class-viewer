@@ -109,6 +109,7 @@ public  abstract class JType extends StereotypedElement implements Iterable<JOpe
 	}
 	
 	
+	
 //	public Iterable<MMethod> getOperations() {
 //		return Collections.unmodifiableList(operations);
 //	}

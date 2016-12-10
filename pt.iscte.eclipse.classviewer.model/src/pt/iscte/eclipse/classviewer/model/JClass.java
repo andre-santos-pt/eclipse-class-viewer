@@ -84,24 +84,30 @@ public final class JClass extends JType {
 
 	@Override
 	public List<Dependency> getDependencies(JType target) {
+		checkNotNull(target);
 		List<Dependency> deps = super.getDependencies(target);
 		if(target.equals(superclass))
 			deps.add(Dependency.ofInheritance(this, target));
 		
 		for(JField f : fields)
-			if(f.getType().equals(target) && !f.hasProperty("VALUE_TYPE"))
-				deps.add(new FieldDependency(this, target, Cardinality.one()));
+			if(f.getType().equals(target) && !f.getType().hasProperty("VALUE_TYPE"))
+				deps.add(new FieldDependency(this, target, f.getName(), f.getCardinality()));
 		return deps;
 	}
 	
-	
-	
-
-	public Iterable<Association> getAssociations() {
-		return Collections.unmodifiableSet(associations);
+	public boolean hasNonUnaryDependencyTo(JType target) {
+		for(JField f : fields)
+			if(f.getType().equals(target) && !f.getCardinality().isUnary())
+				return true;
+					
+		return false;
 	}
-
 	
+	
+
+//	public Iterable<Association> getAssociations() {
+//		return Collections.unmodifiableSet(associations);
+//	}
 
 	public boolean compatibleWith(JClass clazz) {
 		JClass c = this;
@@ -114,7 +120,6 @@ public final class JClass extends JType {
 	}
 	
 	
-
 	
 	
 }
