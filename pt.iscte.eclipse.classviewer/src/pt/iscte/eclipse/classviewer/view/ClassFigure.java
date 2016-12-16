@@ -5,20 +5,23 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.eclipse.draw2d.AbstractConnectionAnchor;
 import org.eclipse.draw2d.ColorConstants;
+import org.eclipse.draw2d.ConnectionAnchor;
 import org.eclipse.draw2d.Figure;
 import org.eclipse.draw2d.Graphics;
 import org.eclipse.draw2d.Label;
 import org.eclipse.draw2d.LineBorder;
 import org.eclipse.draw2d.MarginBorder;
-import org.eclipse.draw2d.Polyline;
-import org.eclipse.draw2d.PolylineShape;
 import org.eclipse.draw2d.ToolbarLayout;
+import org.eclipse.draw2d.geometry.Point;
+import org.eclipse.draw2d.geometry.Rectangle;
 import org.eclipse.jface.viewers.ViewerFilter;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Font;
 
+import pt.iscte.eclipse.classviewer.model.IDependency;
 import pt.iscte.eclipse.classviewer.model.JClass;
 import pt.iscte.eclipse.classviewer.model.JOperation;
 import pt.iscte.eclipse.classviewer.model.JType;
@@ -65,17 +68,9 @@ public class ClassFigure extends Figure {
 		add(fieldsCompartment);
 		
 		if(type.isClass())
-			((JClass) type).getFields().forEach((f) -> {
-				if(f.getType().hasProperty("VALUE_TYPE")) {
-					Label label = new Label("- " + f.getName() + " : " + f.getType().getName());
-					label.setFont(METHOD_FONT);
-					label.setBorder(new MarginBorder(1));
-					fieldsCompartment.add(label);
-				}
-					
-			});
+			createFields((JClass) type);
 		
-
+		
 		
 				
 //		add(headerCompartment);
@@ -84,6 +79,19 @@ public class ClassFigure extends Figure {
 		
 		type.getOperations().forEach((o) -> addMethodLabel(o));
 		setSize(-1, -1);
+	}
+
+	private void createFields(JClass c) {
+		c.getFields().forEach((f) -> {
+			if(f.getType().hasProperty("VALUE_TYPE")) {
+				String text = f.getVisibility().symbol() + " " + f.getName() + " : " + f.getType().getName();
+				Label label = f.isStatic() ? new LabelFigure(text) : new Label(text);
+				label.setFont(METHOD_FONT);
+				label.setBorder(new MarginBorder(1));
+				fieldsCompartment.add(label);
+			}
+				
+		});
 	}
 
 	public JType getJType() {
@@ -121,10 +129,19 @@ public class ClassFigure extends Figure {
 		return null;
 	}
 	
+	public void hide(Collection<JOperation> operations) {
+		operations.forEach((o) -> hide(o));
+	}
+	
+	public void hide(JOperation operation) {
+		Label label = operationLabels.get(operation);
+		methodsCompartment.remove(label);
+		operationLabels.remove(label);
+	}
+	
 	public void setFilter(ViewerFilter filter) {
 		for(Entry<JOperation, Label> e : operationLabels.entrySet()) {
 			if(!filter.select(null, null, e.getKey())) {
-//				e.getValue().setSize(e.getValue().getBounds().width, 0);
 				methodsCompartment.remove(e.getValue());
 				operationLabels.remove(e.getValue());
 			}
@@ -150,7 +167,8 @@ public class ClassFigure extends Figure {
 //		header.setBorder(null);
 //		header.setLayoutManager(new ToolbarLayout());
 		if(type.isInterface()) {
-			Label label = createLabel("<<interface>>", INTERFACE_DESC_FONT);
+			Label label = new Label("<<interface>>");
+			label.setFont(INTERFACE_DESC_FONT);
 //			header.add(label);
 			add(label);
 			font = CLASS_FONT;
@@ -160,16 +178,18 @@ public class ClassFigure extends Figure {
 		}
 		else { //Class
 			font = CLASS_FONT;
+			
 		}
 		
 		for(Stereotype s : type.getSterotypes()) {
-			Label label = createLabel("<<" + s.getName() + ">>", INTERFACE_DESC_FONT);
-//			header.add(label);
+			Label label = new Label("<<" + s.getName() + ">>");
+			label.setFont(INTERFACE_DESC_FONT);
 			add(label);
 		}
 			
 
-		nameLabel = createLabel(type.getName(), font);
+		nameLabel = new Label(type.getName());
+		nameLabel.setFont(font);
 		Label toolTipLabel = createToolTipLabel(type.getQualifiedName() + "\n" + pretty(type.getProperties()));
 		nameLabel.setBorder(new MarginBorder(3,10,3,10));
 //		header.setToolTip(toolTipLabel);
@@ -189,10 +209,8 @@ public class ClassFigure extends Figure {
 
 	private void addMethodLabel(final JOperation operation) {
 		String text = operation.getVisibility().symbol() + " " + operation.getName() + "()";
-
-		Font font = operation.isAbstract() ? ABSTRACT_METHOD_FONT : METHOD_FONT;
-
-		Label methodLabel = createLabel(text, font);
+		Label methodLabel = operation.isStatic() ? new LabelFigure(text) : new Label(text);
+		methodLabel.setFont(operation.isAbstract() ? ABSTRACT_METHOD_FONT : METHOD_FONT);
 		methodLabel.setBorder(new MarginBorder(1));
 	
 		operationLabels.put(operation, methodLabel);
@@ -210,19 +228,146 @@ public class ClassFigure extends Figure {
 		return builder.toString();
 	}
 
-	
-	private Label createLabel(String text, Font font) {
-		Label label = new Label(text);
-		label.setFont(font);
-		
-		return label;
-	}
 
+		
 	private Label createToolTipLabel(String text) {
-		Label toolTipLabel = createLabel(text, TOOLTIP_FONT);
+		Label toolTipLabel =  new Label(text);
+		toolTipLabel.setFont(TOOLTIP_FONT);
 		toolTipLabel.setBackgroundColor(TOOLTIP_COLOR);
 		toolTipLabel.setOpaque(true);
 		return toolTipLabel;
+	}
+
+	
+	private class Anchor extends AbstractConnectionAnchor {
+
+		private boolean isExtendsOrImplements;
+		
+		public Anchor(boolean isExtendsOrImplements) {
+			super(ClassFigure.this);
+			this.isExtendsOrImplements = isExtendsOrImplements;
+		}
+
+		@Override
+		public Point getLocation(Point reference) {
+			org.eclipse.draw2d.geometry.Rectangle r =  org.eclipse.draw2d.geometry.Rectangle.SINGLETON;
+			r.setBounds(getOwner().getBounds());
+			r.translate(0, 0);
+			r.resize(1, 1);
+			getOwner().translateToAbsolute(r);
+			Point[] anchors = isExtendsOrImplements ? createMiddlePoints(r) : createPoints(r, 2);
+			Point p = minDistance(reference, anchors);
+			return p;
+		}
+
+		private Point minDistance(Point reference, Point[] anchors) {
+			Point p = anchors[0];
+			for(int i = 1; i < anchors.length; i++)
+				if(reference.getDistance(anchors[i]) < reference.getDistance(p))
+					p = anchors[i];
+			return p;
+		}
+		
+		private Point[] createMiddlePoints(org.eclipse.draw2d.geometry.Rectangle r) {
+			return new Point[] {
+					new Point(r.x + r.width/2, r.y),
+					new Point(r.x + r.width/2, r.y + r.height),
+					new Point(r.x, r.y + r.height/2),
+					new Point(r.x + r.width, r.y + r.height/2)
+			};
+		}
+		
+		private Point[] createPoints(org.eclipse.draw2d.geometry.Rectangle r, int nSide) {
+			Point[] points = new Point[nSide*4];
+			int xStep = r.width/(nSide+1);
+			int yStep = r.height/(nSide+1);
+
+			int w = 0;
+			for(int i = 0, x = r.x + xStep, y = r.y + yStep; i < nSide; i++, x += xStep, y += yStep) {
+				points[w++] = new Point(x, r.y);
+				points[w++] = new Point(x, r.y + r.height);
+				points[w++] = new Point(r.x, y);
+				points[w++] = new Point(r.x + r.width, y);				
+			}
+			
+			return points;
+		}
+		
+	}
+
+	enum Position {
+		TOP {
+			@Override
+			Point getPoint(Rectangle r) {
+				return new Point(r.x + r.width/2, r.y);
+			}
+		},
+		RIGHT {
+			@Override
+			Point getPoint(Rectangle r) {
+				return new Point(r.x + r.width, r.y + r.height/2);
+			}
+		},
+		BOTTOM {
+			@Override
+			Point getPoint(Rectangle r) {
+				return new Point(r.x + r.width/2, r.y + r.height);
+			}
+		},
+		LEFT {
+			@Override
+			Point getPoint(Rectangle r) {
+				return new Point(r.x, r.y + r.height/2);
+			}
+		};
+		
+		abstract Point getPoint(org.eclipse.draw2d.geometry.Rectangle r);
+	}
+	
+	private class PositionAnchor extends AbstractConnectionAnchor {
+
+		private Position position;
+		
+		public PositionAnchor(Position position) {
+			super(ClassFigure.this);
+			this.position = position;
+		}
+
+		@Override
+		public Point getLocation(Point reference) {
+			org.eclipse.draw2d.geometry.Rectangle r =  org.eclipse.draw2d.geometry.Rectangle.SINGLETON;
+			r.setBounds(getOwner().getBounds());
+			r.translate(0, 0);
+			r.resize(1, 1);
+			getOwner().translateToAbsolute(r);
+			return position.getPoint(r);
+		}
+
+	}
+	
+	PositionAnchor[] pos = {
+			new PositionAnchor(Position.BOTTOM),
+			new PositionAnchor(Position.LEFT),
+			new PositionAnchor(Position.TOP),
+			new PositionAnchor(Position.RIGHT),
+	};
+	
+	int i = 0;
+	
+	public ConnectionAnchor createIncomingAnchor(IDependency d) {
+//		ConnectionAnchor a = new PositionAnchor(Position.values()[i]);
+//		i = (i + 1) % pos.length;
+//		return a;
+//		if(d.isSelfDependency())
+			return new PositionAnchor(Position.BOTTOM);
+//		return new Anchor(d instanceof ClassExtension || d instanceof InterfaceImplementation);
+	}
+	
+	public ConnectionAnchor createOutgoingAnchor(IDependency d) {
+//		if(d.isSelfDependency())
+			return new PositionAnchor(Position.TOP);
+		
+//		return new Anchor(d instanceof ClassExtension || d instanceof InterfaceImplementation);
 	}
 	
 }

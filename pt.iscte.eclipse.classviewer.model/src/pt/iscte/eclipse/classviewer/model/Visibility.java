@@ -1,14 +1,12 @@
 package pt.iscte.eclipse.classviewer.model;
 
-import java.io.Serializable;
-
-public enum Visibility implements Serializable {
+public enum Visibility {
 	PRIVATE("-"),
 	PACKAGE("~"),
 	PROTECTED("#"),
 	PUBLIC("+");
 	
-	private String symbol;
+	private final String symbol;
 	
 	private Visibility(String symbol) {
 		this.symbol = symbol;

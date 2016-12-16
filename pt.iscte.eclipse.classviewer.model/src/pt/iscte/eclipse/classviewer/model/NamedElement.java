@@ -23,12 +23,7 @@ public abstract class NamedElement implements Serializable {
 	public String getName() {
 		return name;
 	}
-	
-//	@Override
-//	public final String toString() {
-//		return getClass().getSimpleName() + " " + name;
-//	}
-	
+
 	public String getProperty(String key) {
 		checkNotNull(key);
 		return props.get(key);
@@ -57,26 +52,4 @@ public abstract class NamedElement implements Serializable {
 		return Collections.unmodifiableMap(props);
 	}
 	
-	@Override
-	public final boolean equals(Object obj) {
-		return
-				obj != null &&
-				getClass().equals(obj.getClass()) && 
-				((NamedElement) obj).name.equals(name) &&
-				equalsInternal(obj);
-	}
-	
-	boolean equalsInternal(Object obj) {
-		return true;
-	}
-	
-	// cuidado método
-	@Override
-	public final int hashCode() {
-		return name.hashCode() + hashCodeInternal();
-	}
-	
-	int hashCodeInternal() {
-		return 0;
-	}
 }

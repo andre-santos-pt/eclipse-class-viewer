@@ -1,6 +1,6 @@
 package pt.iscte.eclipse.classviewer;
 
-import pt.iscte.eclipse.classviewer.model.Association;
+import pt.iscte.eclipse.classviewer.model.JAssociation;
 import pt.iscte.eclipse.classviewer.model.JModel;
 import pt.iscte.eclipse.classviewer.model.JOperation;
 import pt.iscte.eclipse.classviewer.model.JType;
@@ -13,7 +13,7 @@ public interface DiagramListener {
 	
 	void operationEvent(JOperation operation, Event event);
 	
-	void dependencyEvent(Association association, Event event);
+	void dependencyEvent(JAssociation association, Event event);
 	
 	enum Event {
 		ADD,
@@ -25,7 +25,7 @@ public interface DiagramListener {
 		public void diagramEvent(JModel model, Event event) { }
 		public void classEvent(JType type, Event event) { }
 		public void operationEvent(JOperation operation, Event event) { }
-		public void dependencyEvent(Association association, Event event) { }
+		public void dependencyEvent(JAssociation association, Event event) { }
 	}
 	
 	public static class EventFilter implements DiagramListener {
@@ -59,7 +59,7 @@ public interface DiagramListener {
 		}
 
 		@Override
-		public void dependencyEvent(Association association, Event event) {
+		public void dependencyEvent(JAssociation association, Event event) {
 			if(event.equals(this.event))
 				listener.dependencyEvent(association, event);
 		}
@@ -88,7 +88,7 @@ public interface DiagramListener {
 		}
 
 		@Override
-		public void dependencyEvent(Association association, Event event) {
+		public void dependencyEvent(JAssociation association, Event event) {
 			
 		}
 	}

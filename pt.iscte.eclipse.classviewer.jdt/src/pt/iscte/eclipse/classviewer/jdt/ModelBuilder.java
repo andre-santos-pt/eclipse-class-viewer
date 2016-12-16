@@ -10,6 +10,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import org.eclipse.jdt.core.Flags;
+import org.eclipse.jdt.core.IClassFile;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IField;
 import org.eclipse.jdt.core.IJavaElement;
@@ -32,6 +33,7 @@ import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.TypeDeclaration;
 import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 
+import pt.iscte.eclipse.classviewer.model.CallDependency;
 import pt.iscte.eclipse.classviewer.model.Cardinality;
 import pt.iscte.eclipse.classviewer.model.JClass;
 import pt.iscte.eclipse.classviewer.model.JField;
@@ -64,37 +66,34 @@ public class ModelBuilder {
 				for(IPackageFragment p : pcks) {
 					for(ICompilationUnit u : p.getCompilationUnits()) {
 						IType t = u.findPrimaryType();
-						if(Flags.isPublic(t.getFlags())) {
-							JType jt = handleCompilationUnit(u, model);
+						if(Flags.isPublic(t.getFlags())) { // review
+							JType jt = handleType(u.findPrimaryType(), model);
 							classes.put(jt, t);
 						}
-
 					}
 				}
 			}
 			else if(firstInSelection instanceof IPackageFragment) {
 				IPackageFragment pack = (IPackageFragment) element;
 				for(ICompilationUnit u : pack.getCompilationUnits()) {
-					JType jt = handleCompilationUnit(u, model);
+					JType jt = handleType(u.findPrimaryType(), model);
 					classes.put(jt, u.findPrimaryType());
+				}
+				for (IClassFile c : pack.getClassFiles()) {
+					JType jt = handleType(c.getType(), model);
+					classes.put(jt, c.getType());
 				}
 			}
 			else if(firstInSelection instanceof ICompilationUnit) {
 				ICompilationUnit u = (ICompilationUnit) element;
-				JType jt = handleCompilationUnit(u, model);
+				JType jt = handleType(u.findPrimaryType(), model);
 				classes.put(jt, u.findPrimaryType());
 			}
 
 		}
 
 		handleExtendsAndImplements(classes, model);
-
-		for(IType t : classes.values()) 
-			if(!t.isInterface())
-				handleAssociations(t, model);	
-
 		handleDependencies(classes, model);
-
 		markUsedOperations(model);
 		markExternalDependencies(model);
 		Result res = new Result();
@@ -105,7 +104,7 @@ public class ModelBuilder {
 
 
 
-	private static String resolve(IType t, String typeName) {
+	public static String resolve(IType t, String typeName) {
 		String[][] resolveType;
 		try {
 			resolveType = t.resolveType(typeName);
@@ -119,19 +118,17 @@ public class ModelBuilder {
 		return typeName;
 	}
 
-
-	private static JType handleCompilationUnit(ICompilationUnit unit, JModel model)
-			throws Exception {
-		IType t = unit.findPrimaryType();
+	private static JType handleType(IType t, JModel model) throws JavaModelException {
 		JType type = t.isInterface() ? new JInterface(t.getFullyQualifiedName()) : new JClass(t.getFullyQualifiedName(), Flags.isAbstract(t.getFlags()));
 		model.addType(type);
 		if(t.isEnum())
 			type.setTagProperty(TAG_VALUE_TYPE);
-		for(IMethod m : t.getMethods())
-			new JOperation(type, m.getElementName());
-
+		for(IMethod m : t.getMethods()) {
+			new JOperation(type, m.getElementName()).setStatic(Flags.isStatic(m.getFlags()));
+		}
 		return type;
 	}
+
 
 
 	private static void handleExtendsAndImplements(Map<JType, IType> classes, JModel model) throws JavaModelException {
@@ -145,7 +142,7 @@ public class ModelBuilder {
 					superclass.setTagProperty(TAG_EXTERNAL);
 					model.addType(superclass);
 				}
-				((JClass) e.getKey()).setSuperclass(superclass);
+				((JClass) e.getKey()).addSuperclass(superclass);
 			}
 
 			for (String interfaceImpl : t.getSuperInterfaceNames()) {
@@ -164,113 +161,23 @@ public class ModelBuilder {
 
 
 
-	private static void handleAssociations(IType t, JModel model) {
-
-		try {
-			for (IField f : t.getFields()) {
-				System.out.println(f);
-				String[] typeArguments = Signature.getTypeArguments(f.getTypeSignature());
-				System.out.println(Arrays.toString(typeArguments));
-				System.out.println(Signature.getElementType(f.getTypeSignature()));
-			}
-		} catch (JavaModelException e1) {
-			e1.printStackTrace();
-		}
-	}
-
-
-
 	private static void handleDependencies(Map<JType, IType> classes, final JModel model) {
 		for(Entry<JType, IType> e : classes.entrySet()) {
 			final IType it = e.getValue();
 			final JType t = e.getKey();
 			ASTParser parser = ASTParser.newParser(AST.JLS8);
-			parser.setSource(e.getValue().getCompilationUnit());
+			if(it.getCompilationUnit() != null)
+				parser.setSource(it.getCompilationUnit());
+			else if(it.getClassFile() != null)
+				parser.setSource(it.getClassFile());
+			else
+				continue;
 			parser.setResolveBindings(true);
 			ASTNode root = parser.createAST(null);
-		
-			root.accept(new ASTVisitor() {
-				@Override
-				public boolean visit(FieldDeclaration node) {
-					if(t.isClass() && node.getParent() instanceof TypeDeclaration) {
-						VariableDeclarationFragment var = (VariableDeclarationFragment) node.fragments().get(0);
-						ITypeBinding tBind = node.getType().resolveBinding();
-						boolean isCollection = tBind == null ? false : isCollection(tBind);
-
-						String tName = resolve(it, node.getType().toString());
-						JType dep = model.getType(tName);
-						if(isCollection && tBind != null) {
-							if(tBind.isParameterizedType()) {
-								for(ITypeBinding ta : tBind.getTypeArguments()){
-									String qName = qualifiedNameWithoutGenerics(ta.getQualifiedName());
-									dep = model.getType(qName);
-								}
-							}
-						}
-
-						if(dep == null) {
-							dep = new JClass(tName);
-							dep.setTagProperty(TAG_EXTERNAL);
-							if(node.getType().isPrimitiveType() || tName.equals(String.class.getName()) || (tBind != null && tBind.isEnum()))
-								dep.setTagProperty(TAG_VALUE_TYPE);
-							model.addType(dep);
-						}
-
-						Cardinality card = Cardinality.zeroOne();
-						if(isCollection || node.getType().isArrayType())
-							card = Cardinality.zeroMany();
-
-						new JField((JClass) t, var.getName().toString(), dep, card);
-
-
-					}
-					return true;
-				}
-
-				private String qualifiedNameWithoutGenerics(String qName) {
-					int i = qName.indexOf('<');
-					return i == -1 ? qName : qName.substring(0, i);
-				}
-
-				private boolean isCollection(ITypeBinding t) {
-					String qName = qualifiedNameWithoutGenerics(t.getQualifiedName());
-					if(qName.equals(Collection.class.getName()) || qName.equals(Map.class.getName()))
-						return true;
-					else
-						for(ITypeBinding si : t.getInterfaces())
-							if(isCollection(si))
-								return true;
-					return false;
-
-				}
-
-				public boolean visit(MethodInvocation inv) {
-					ASTNode parent = inv.getParent();
-					while(!(parent instanceof MethodDeclaration) && parent != null) {
-						parent = parent.getParent();
-					}
-					if(parent instanceof MethodDeclaration) {
-						String callerMethodName = ((MethodDeclaration) parent).getName().getFullyQualifiedName();
-						Expression exp = inv.getExpression();
-						if(exp instanceof SimpleName) {
-							ITypeBinding typeBinding = ((SimpleName) exp).resolveTypeBinding();
-							if(typeBinding != null) {
-								String targetTypeName = resolve(it, typeBinding.isParameterizedType() ? typeBinding.getErasure().getName() : typeBinding.getName());
-								JType targetType = model.getType(targetTypeName);
-								if(targetType != null && !t.equals(targetType)) {
-									JOperation sourceOperation = t.getOperation(callerMethodName);
-									JOperation targetOperation = targetType.getOperation(inv.getName().getFullyQualifiedName());
-									if(sourceOperation != null && targetOperation != null) {
-										sourceOperation.addDependency(targetOperation);
-									}
-								}
-							}
-						}
-					}
-					return true;
-				}
-
-			});
+			Visitor visitor = new Visitor(model, t, it);
+			root.accept(visitor);
+			if(visitor.isValueType())
+				t.setTagProperty(TAG_VALUE_TYPE);
 		}
 	}
 
@@ -280,10 +187,10 @@ public class ModelBuilder {
 		Set<JOperation> operationsWithDeps = new HashSet<>();
 
 		model.getTypes().forEach((t) -> t.getOperations().forEach((o) -> {
-			Set<JOperation> deps = o.getDependencies();
+			Collection<CallDependency> deps = o.getDependencies2();
 			if(!deps.isEmpty()) {
 				operationsWithDeps.add(o);
-				operationsWithDeps.addAll(deps);
+				deps.forEach((d) -> operationsWithDeps.add(d.getTargetOperation()));
 			}
 		}));
 
@@ -295,22 +202,33 @@ public class ModelBuilder {
 	}
 
 	private static void markExternalDependencies(JModel model) {
-		model.getTypes().stream().filter((t) -> !t.hasProperty(TAG_EXTERNAL)).forEach((t) -> {
-			t.getInterfaces().forEach((i) -> {
-				if(i.hasProperty(TAG_EXTERNAL))
-					t.setTagProperty(TAG_EXTERNAL_DEPENDENCY);
-			});
-			if(t instanceof JInterface) {
-				((JInterface)t).getSuperInterfaces().forEach((i) -> {
-					if(i.hasProperty(TAG_EXTERNAL))
-						t.setTagProperty(TAG_EXTERNAL_DEPENDENCY);
-				});
-			}
-			else {
-				JClass superclass = ((JClass) t).getSuperclass();
-				if(superclass != null && superclass.hasProperty(TAG_EXTERNAL))
-					t.setTagProperty(TAG_EXTERNAL_DEPENDENCY);
-			}
-		});
+		model.getTypes().stream()
+		.filter((t) -> !t.hasProperty(TAG_EXTERNAL))
+		.forEach((t) -> t.getDependencies2().forEach((d) -> {
+			 if(d.getTargetType().hasProperty(TAG_EXTERNAL))
+				 t.setTagProperty(TAG_EXTERNAL_DEPENDENCY);
+		}));
+		
+//		model.getTypes().stream().filter((t) -> !t.hasProperty(TAG_EXTERNAL)).forEach((t) -> {
+//			t.getInterfaces().forEach((i) -> {
+//				if(i.hasProperty(TAG_EXTERNAL))
+//					t.setTagProperty(TAG_EXTERNAL_DEPENDENCY);
+//			});
+//			
+//			
+//			
+//			if(t instanceof JInterface) {
+//				((JInterface)t).getSuperInterfaces().forEach((i) -> {
+//					if(i.hasProperty(TAG_EXTERNAL))
+//						t.setTagProperty(TAG_EXTERNAL_DEPENDENCY);
+//				});
+//			}
+//			else {
+//				List<JClass> superclasses = ((JClass) t).getSuperclasses();
+//				JClass superclass = superclasses.isEmpty() ? null : superclasses.get(0);
+//				if(superclass != null && superclass.hasProperty(TAG_EXTERNAL))
+//					t.setTagProperty(TAG_EXTERNAL_DEPENDENCY);
+//			}
+//		});
 	}
 }

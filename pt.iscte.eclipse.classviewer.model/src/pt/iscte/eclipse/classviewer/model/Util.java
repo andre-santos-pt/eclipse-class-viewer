@@ -6,6 +6,7 @@ class Util {
 		for(Object o : v)
 			if(o == null)
 				throw new NullPointerException("arg cannot be null");
-		
 	}
+	
+
 }

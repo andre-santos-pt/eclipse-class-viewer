@@ -3,6 +3,7 @@ package pt.iscte.eclipse.classviewer.model;
 import static pt.iscte.eclipse.classviewer.model.Util.checkNotNull;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.Set;
 
 public class JOperation extends NamedElement {
 
+	
 	private static final long serialVersionUID = 1L;
 
 	private JType owner;
@@ -18,8 +20,9 @@ public class JOperation extends NamedElement {
 	private boolean isAbstract;
 	private boolean isStatic;
 	private List<JType> params;
-	private Set<JOperation> deps;
 	private JType returnType;
+	
+	private List<CallDependency> callDependencies;
 	
 	public JOperation(JType owner, String name, JType ... params) {
 		super(name);
@@ -36,7 +39,23 @@ public class JOperation extends NamedElement {
 			this.params.add(p);
 		}
 		
-		deps = new HashSet<>();
+		callDependencies = Collections.emptyList();
+	}
+	
+	public JOperation setStatic(boolean isStatic) {
+		this.isStatic = isStatic;
+		return this;
+	}
+	
+	public JOperation setAbstract(boolean isAbstract) {
+		this.isAbstract = isAbstract;
+		return this;
+	}
+	
+	public JOperation setVisibility(Visibility v) {
+		checkNotNull(v);
+		visibility = v;
+		return this;
 	}
 	
 	public JType getOwner() {
@@ -47,10 +66,7 @@ public class JOperation extends NamedElement {
 		return visibility;
 	}
 
-	public void setVisibility(Visibility v) {
-		checkNotNull(v);
-		visibility = v;
-	}
+
 	
 	public boolean isAbstract() {
 		return isAbstract;
@@ -60,14 +76,12 @@ public class JOperation extends NamedElement {
 		return isStatic;
 	}
 	
-	public void addDependency(JOperation o) {
-		checkNotNull(o);
-		deps.add(o);
-	}
+//	public void addDependency(JOperation o) {
+//		checkNotNull(o);
+//		deps.add(o);
+//	}
 	
-	public Set<JOperation> getDependencies() {
-		return Collections.unmodifiableSet(deps);
-	}
+	
 	JOperation copyTo(JType type) {
 		// TODO copy deps
 		JOperation op = new JOperation(type, getName());
@@ -79,20 +93,24 @@ public class JOperation extends NamedElement {
 	}
 	
 	
-	// TODO
-	@Override
-	boolean equalsInternal(Object obj) {
-		return super.equalsInternal(obj);
-	}
-	
-	@Override
-	int hashCodeInternal() {
-		return super.hashCodeInternal();
-	}
-	
 	@Override
 	public String toString() {
 		return owner.getName() + "." + getName() + "(...)";
 	}
+
+	public void addDependency2(JOperation o) {
+		checkNotNull(o);
+		if(callDependencies.isEmpty())
+			callDependencies = new ArrayList<>();
+		
+		callDependencies.add(new CallDependency(this, o));
+	}
+	
+	
+	public Collection<CallDependency> getDependencies2() {
+		return Collections.unmodifiableList(callDependencies);
+	}
+
+	
 }
 

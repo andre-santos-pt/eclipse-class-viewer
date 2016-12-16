@@ -1,36 +1,29 @@
 package pt.iscte.eclipse.classviewer.view;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
-import org.eclipse.draw2d.ColorConstants;
 import org.eclipse.draw2d.IFigure;
 import org.eclipse.draw2d.Label;
-import org.eclipse.draw2d.PolygonDecoration;
-import org.eclipse.draw2d.PolylineConnection;
-import org.eclipse.draw2d.PolylineDecoration;
-import org.eclipse.draw2d.geometry.PointList;
+import org.eclipse.draw2d.geometry.Point;
 import org.eclipse.jface.viewers.ISelectionChangedListener;
 import org.eclipse.jface.viewers.IStructuredSelection;
-import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.SelectionChangedEvent;
-import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.viewers.ViewerFilter;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.MouseAdapter;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
-import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.GC;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.Rectangle;
-import org.eclipse.swt.layout.FillLayout;
+import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.layout.RowLayout;
+import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.MenuItem;
@@ -38,26 +31,22 @@ import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.part.ViewPart;
 import org.eclipse.zest.core.viewers.AbstractZoomableViewer;
 import org.eclipse.zest.core.viewers.GraphViewer;
-import org.eclipse.zest.core.viewers.IConnectionStyleProvider;
-import org.eclipse.zest.core.viewers.IFigureProvider;
-import org.eclipse.zest.core.viewers.IGraphEntityRelationshipContentProvider;
-import org.eclipse.zest.core.viewers.ISelfStyleProvider;
 import org.eclipse.zest.core.viewers.IZoomableWorkbenchPart;
 import org.eclipse.zest.core.viewers.ZoomContributionViewItem;
 import org.eclipse.zest.core.widgets.Graph;
-import org.eclipse.zest.core.widgets.GraphConnection;
 import org.eclipse.zest.core.widgets.GraphNode;
 import org.eclipse.zest.core.widgets.ZestStyles;
 
 import pt.iscte.eclipse.classviewer.DiagramListener;
 import pt.iscte.eclipse.classviewer.DiagramListener.Event;
 import pt.iscte.eclipse.classviewer.model.CallDependency;
-import pt.iscte.eclipse.classviewer.model.Dependency;
-import pt.iscte.eclipse.classviewer.model.FieldDependency;
-import pt.iscte.eclipse.classviewer.model.JClass;
+import pt.iscte.eclipse.classviewer.model.IDependency;
+import pt.iscte.eclipse.classviewer.model.JField;
 import pt.iscte.eclipse.classviewer.model.JModel;
 import pt.iscte.eclipse.classviewer.model.JOperation;
 import pt.iscte.eclipse.classviewer.model.JType;
+import pt.iscte.eclipse.classviewer.model.TypeDependency;
+import pt.iscte.eclipse.classviewer.view.Filters.Filter;
 
 public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 
@@ -67,198 +56,80 @@ public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 		return instance;
 	}
 
-	private Composite composite;
 	private List<DiagramListener> listeners;
 	private GraphViewer viewer;
+
+	private JModel model;
+	
+	private final SelectionListener listener = new SelectionListener();
 
 	
 	public JModelViewer() {
 		instance = this;
 	}
 
-	class NodeProvider implements IGraphEntityRelationshipContentProvider {
-
-		@Override
-		public Object[] getElements(Object input) {
-			return ((JModel) input).sortedTypes().stream().filter((t) -> !t.hasProperty("VALUE_TYPE")).toArray();
-		}
-
-		@Override
-		public void dispose() {
-
-		}
-
-		@Override
-		public void inputChanged(Viewer v, Object oldInput, Object newInput) {
-
-		}
-
-		@Override
-		public Object[] getRelationships(Object source, Object target) {
-			JType sourceType = (JType) source;
-			JType targetType = (JType) target;
-
-			List<Dependency> dependencies = sourceType.getDependencies(targetType);
-			Iterator<Dependency> iterator = dependencies.iterator();
-			while(iterator.hasNext()) {
-				Dependency d = iterator.next();
-				if(d instanceof FieldDependency && d.getTargetType().isClass()) {
-					FieldDependency fd = (FieldDependency) d;
-					if(fd.getCardinality().isUnary() && ((JClass) fd.getTargetType()).hasNonUnaryDependencyTo(fd.getSourceType()))
-						iterator.remove();
-				}
-			}
-			iterator = dependencies.iterator();
-			while(iterator.hasNext()) {
-				Dependency d = iterator.next();
-				if(d instanceof CallDependency) {
-					CallDependency cd = (CallDependency) d;
-					boolean remove = false;
-					for(Dependency d2 : dependencies)
-						if(d2 instanceof FieldDependency && ((FieldDependency) d2).getTargetType().equals(cd.getTargetType()))
-							remove = true;
-					
-					if(remove)
-						iterator.remove();
-				}
-			}
-			//			mergeCallDependencies(dependencies);
-			return dependencies.toArray();
-		}
-
-		private void mergeCallDependencies(List<Dependency> list) {
-
-			Map<JType, JType> map = new HashMap<>();
-			Set<Dependency> dups = new HashSet<>();
-			for(Dependency d : list) {
-				if(map.get(d.getSourceType()).equals(d.getTargetType()))
-					dups.add(d);
-				else
-					map.put(d.getSourceType(), d.getTargetType());
-			}
-
-			for(Dependency d : dups) {
-				list.remove(d);
-			}
-		}
-	}
-
-	class FigureProvider extends LabelProvider implements IFigureProvider, IConnectionStyleProvider, ISelfStyleProvider {
-		@Override
-		public IFigure getFigure(Object element) {
-			return new ClassFigure((JType) element);
-		}
-
-		@Override
-		public String getText(Object element) {
-			if(element instanceof FieldDependency)
-				return ((FieldDependency) element).getFieldName();
-			return null;
-		}
 
 
-
-		@Override
-		public IFigure getTooltip(Object entity) {
-			return new Label(entity.toString());
-		}
-
-		@Override
-		public int getConnectionStyle(Object rel) {
-			switch(((Dependency) rel).getKind()) {
-			case CALL: case INTERFACE: return ZestStyles.CONNECTIONS_DOT;
-			default: return ZestStyles.CONNECTIONS_SOLID;
-			}
-		}
-
-		@Override
-		public Color getColor(Object rel) {
-			return ColorConstants.black;
-		}
-
-		@Override
-		public Color getHighlightColor(Object rel) {
-			return ColorConstants.blue;
-		}
-
-		@Override
-		public int getLineWidth(Object rel) {
-			return 2;
-		}
-
-		@Override
-		public void selfStyleConnection(Object element, GraphConnection connection) {
-			switch(((Dependency) element).getKind()) {
-			case INHERITANCE: case INTERFACE: {
-				PolygonDecoration decoration = new PolygonDecoration();
-				decoration.setScale(20, 10);
-				decoration.setLineWidth(2);
-				decoration.setOpaque(true);
-				decoration.setBackgroundColor(ColorConstants.white);
-				((PolylineConnection) connection.getConnectionFigure()).setTargetDecoration(decoration);
-				break;
-			}
-			case CALL: {
-				PolylineDecoration decoration = new PolylineDecoration();
-				decoration.setScale(10, 5);
-				decoration.setLineWidth(2);
-				((PolylineConnection) connection.getConnectionFigure()).setTargetDecoration(decoration);
-				break;
-			}
-			case FIELD: {
-				
-				FieldDependency dep = (FieldDependency) element;
-				if(dep.getCardinality().isUnary()) {
-					PolylineDecoration decoration = new PolylineDecoration();
-					decoration.setScale(10, 5);
-					decoration.setLineWidth(2);
-//					decoration.add(new Label(dep.toString()));
-					((PolylineConnection) connection.getConnectionFigure()).setTargetDecoration(decoration);
-				}
-				else {
-					PolygonDecoration decoration = new PolygonDecoration();
-					PointList points = new PointList();
-					points.addPoint(0,0);
-					points.addPoint(-2,2);
-					points.addPoint(-4,0);
-					points.addPoint(-2,-2);
-					decoration.setTemplate(points);
-					decoration.setScale(7, 3);
-					decoration.setLineWidth(2);
-					decoration.setOpaque(true);
-					decoration.setBackgroundColor(ColorConstants.white);
-					((PolylineConnection) connection.getConnectionFigure()).setSourceDecoration(decoration);
-				}
-				break;
-			}
-			}
-		}
-
-
-		@Override
-		public void selfStyleNode(Object element, GraphNode node) {
-			node.getNodeFigure().setSize(-1, -1);
-		}
-	}
-
-	
-	
-
-
-	private final SelectionListener listener = new SelectionListener();
 	
 	public void createPartControl(Composite parent) {
-		composite = new Composite(parent, SWT.NONE);
-		composite.setLayout(new FillLayout());
-		viewer = new GraphViewer(composite, SWT.NONE);
+		parent.setLayout(new GridLayout());
+		createFiltersBar(parent);
+		viewer = new GraphViewer(parent, SWT.NONE);
+		viewer.getGraphControl().setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 		viewer.setContentProvider(new NodeProvider());
-		viewer.setLabelProvider(new FigureProvider());
-		viewer.setLayoutAlgorithm(LayoutMode.Spring.layoutAlgorithm());
+		viewer.setLabelProvider(new FigureProvider(viewer));
+		viewer.setLayoutAlgorithm(LayoutMode.Spring.layoutAlgorithm(model));
 		viewer.setNodeStyle(ZestStyles.NODES_NO_LAYOUT_RESIZE);
 		viewer.addSelectionChangedListener(listener);
 		createMouseListener(viewer.getGraphControl());
 		fillToolBar();
 	}
+
+	private void createFiltersBar(Composite parent) {
+		Composite filtersBar = new Composite(parent, SWT.BORDER);
+		filtersBar.setLayoutData(new GridData(SWT.FILL, SWT.NONE, true, false));
+		RowLayout layout = new RowLayout();
+		layout.spacing = 10;
+		filtersBar.setLayout(layout);
+		new org.eclipse.swt.widgets.Label(filtersBar, SWT.NONE).setText("Filters: ");
+		
+		for(Filter f : Filters.FILTERS) {
+			Button b = new Button(filtersBar, SWT.CHECK);
+			b.setText(f.getName());
+			b.addSelectionListener(new SelectionAdapter() {
+				public void widgetSelected(SelectionEvent e) {
+					if(b.getSelection())
+						filters.add(f);
+					else
+						filters.remove(f);
+					viewer.setFilters(filters.toArray(new ViewerFilter[filters.size()]));
+					applyFilterToFieldsAndOperations(); // TODO Fields
+					viewer.applyLayout(); // TODO location memory
+				}
+			});
+		}
+	}
+	
+	private void applyFilterToFieldsAndOperations() {
+		Object[] nodeElements = viewer.getNodeElements();
+		for(Object o : nodeElements) {
+			GraphNode node = (GraphNode) viewer.findGraphItem(o);
+			JType type = (JType) node.getData();
+			ClassFigure fig = (ClassFigure) node.getNodeFigure();
+			for (JOperation operation : type.getOperations()) {
+				boolean filter = false;
+				for(Filter f : filters) {
+					if(!f.select(operation)) {
+						filter = true;
+						break;
+					}
+				}
+				if(filter)
+					fig.hide(operation);
+			}
+		}
+	}
+	
 
 	private class SelectionListener implements ISelectionChangedListener {
 		private Set<JType> selectedTypes = new HashSet<>();
@@ -273,10 +144,11 @@ public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 			selectedTypes.clear();
 			
 			if(!sel.isEmpty()) {
-				if(sel.getFirstElement() instanceof CallDependency) {
-					CallDependency d = (CallDependency) sel.getFirstElement();
-					mark(d.getSourceOperation());
-					mark(d.getTargetOperation());
+				if(sel.getFirstElement() instanceof TypeDependency || sel.getFirstElement() instanceof JField) {
+					IDependency d = (IDependency) sel.getFirstElement();
+					Collection<CallDependency> deps = d.getSourceType().getCallDependencies(d.getTargetType());
+					for(CallDependency cd : deps)
+						mark(cd.getSourceOperation());
 				}
 				else if(sel.getFirstElement() instanceof JType) {
 					excludeItem.setEnabled(true);
@@ -324,14 +196,18 @@ public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 
 			private void handleEvent(MouseEvent e, Event event) {
 				IFigure fig = viewer.getGraphControl().getFigureAt(e.x, e.y);
+				
 				if(fig instanceof ClassFigure) {
 					ClassFigure classFig = (ClassFigure) fig;
-					IFigure underFig = classFig.findFigureAt(e.x, e.y);
+					Point p = new Point(e.x, e.y);
+					classFig.translateToRelative(p);
+					IFigure underFig = classFig.findFigureAt(p.x, p.y);
 					if(underFig instanceof Label) {
 						JOperation op = classFig.getOperation((Label) underFig);
 						if(op != null) {
 							for(DiagramListener l : listeners)
 								l.operationEvent(op, event);
+							System.out.println(op);
 						}
 						else {
 							JType type = classFig.getJType();
@@ -352,7 +228,7 @@ public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 
 	}
 
-	private Set<ViewerFilter> filters = new HashSet<>();
+	private Set<Filter> filters = new HashSet<>();
 	private MenuItem excludeItem;
 	private MenuItem viewAsValueItem;
 	
@@ -392,7 +268,7 @@ public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 		layoutItem.setText("Layout");
 		Menu layoutMenu = new Menu(layoutItem);
 		for(LayoutMode mode : LayoutMode.values())
-			mode.createMenuItem(layoutMenu, viewer);
+			mode.createMenuItem(layoutMenu, viewer, model);
 		layoutItem.setMenu(layoutMenu);
 	}
 
@@ -401,21 +277,33 @@ public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 		filtersItem.setText("Filters");
 		Menu filtersMenu = new Menu(filtersItem);
 
-		for(ViewerFilter v : Filters.FILTERS) {
+		for(Filter f : Filters.FILTERS) {
 			MenuItem deps = new MenuItem(filtersMenu, SWT.CHECK);
-			deps.setText(v.toString());
+			deps.setText(f.getName());
 			deps.addSelectionListener(new SelectionAdapter() {
 				public void widgetSelected(SelectionEvent e) {
 					if(deps.getSelection())
-						filters.add(v);
+						filters.add(f);
 					else
-						filters.remove(v);
+						filters.remove(f);
+					
 					viewer.setFilters(filters.toArray(new ViewerFilter[filters.size()]));
 					Object[] nodeElements = viewer.getNodeElements();
 					for(Object o : nodeElements) {
 						GraphNode node = (GraphNode) viewer.findGraphItem(o);
+						JType type = (JType) node.getData();
 						ClassFigure fig = (ClassFigure) node.getNodeFigure();
-						filters.forEach((f) -> fig.setFilter(f));
+						for (JOperation operation : type.getOperations()) {
+							boolean filter = false;
+							for(Filter f : Filters.FILTERS) {
+								if(!f.select(operation)) {
+									filter = true;
+									break;
+								}
+							}
+							if(filter)
+								fig.hide(operation);
+						}
 					}
 					viewer.applyLayout(); // TODO location memory
 				}
@@ -429,7 +317,8 @@ public class JModelViewer extends ViewPart implements IZoomableWorkbenchPart {
 	}
 
 	public void displayModel(JModel model, boolean incremental, List<DiagramListener> listeners) {
-		filters.clear();
+		this.model = model;
+//		filters.clear();
 		createPopupMenu();
 		viewer.setInput(model);
 		this.listeners = listeners;
