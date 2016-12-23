@@ -1,7 +1,0 @@
-Manifest-Version: 1.0
-Bundle-ManifestVersion: 2
-Bundle-Name: JModelDiagram class model
-Bundle-SymbolicName: pt.iscte.eclipse.classviewer.model
-Export-Package: pt.iscte.eclipse.classviewer.model
-Bundle-Version: 0.1
-Bundle-RequiredExecutionEnvironment: JavaSE-1.7
