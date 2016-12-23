@@ -1,0 +1,7 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: ClassViews Data Model
+Bundle-SymbolicName: pt.iscte.eclipse.classviews.model
+Bundle-Version: 0.1
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
+Export-Package: pt.iscte.eclipse.classviews.model

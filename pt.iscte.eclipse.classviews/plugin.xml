@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension-point id="resourceHandlers" name="Resource handlers (Class Views)" schema="schema/resourceHandlers.exsd"/>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="pt.iscte.eclipse.classviews.view.VClassViewer"
+            default="false"
+            extensions="cv"
+            id="pt.iscte.eclipse.classviews.editor"
+            name="Class Views">
+      </editor>
+   </extension>
+
+</plugin>

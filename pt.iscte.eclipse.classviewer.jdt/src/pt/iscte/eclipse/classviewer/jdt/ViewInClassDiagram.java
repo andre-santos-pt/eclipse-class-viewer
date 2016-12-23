@@ -21,7 +21,7 @@ import org.eclipse.ui.ide.IDE;
 import org.eclipse.ui.texteditor.ITextEditor;
 
 import pt.iscte.eclipse.classviewer.DiagramListener;
-import pt.iscte.eclipse.classviewer.JModelDiagram;
+import pt.iscte.eclipse.classviewer.ClassViewsDiagram;
 import pt.iscte.eclipse.classviewer.model.JOperation;
 import pt.iscte.eclipse.classviewer.model.JType;
 
@@ -54,7 +54,7 @@ public class ViewInClassDiagram implements IObjectActionDelegate {
 			e.printStackTrace();
 			return;
 		}
-		new JModelDiagram(res.model)
+		new ClassViewsDiagram(res.model)
 		.withListener(new Listener(res.classes))
 		.display();
 	}

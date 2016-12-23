@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:org.eclipse.jdt.ui.PackageExplorer">
+         <command
+               commandId="pt.iscte.eclipse.classviews.jdt.viewcommand"
+               style="push">
+         </command>
+      </menuContribution>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commands">
+      <command
+            defaultHandler="pt.iscte.eclipse.classviewer.jdt.ViewInClassDiagram"
+            id="pt.iscte.eclipse.classviews.jdt.viewcommand"
+            name="Create Class View">
+      </command>
+   </extension>
+   <extension
+         point="pt.iscte.eclipse.classviews.resourceHandlers">
+      <handler
+            class="pt.iscte.eclipse.classviewer.jdt.Handler">
+      </handler>
+   </extension>
+
+</plugin>
