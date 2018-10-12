@@ -161,7 +161,7 @@ public class VModel extends Observable implements Iterable<VType>, Serializable 
 	}
 	
 	public Iterator<VType> getTypesOfPackage(String packageName) {
-		return new FilterIterator<>(types.values(), (t) -> t.getPackageName().equals(packageName));
+		return new FilterIterator<>(types.values(), t -> t.getPackageName().equals(packageName));
 	}
 	
 	public Iterator<VType> getTypes(Predicate<VType> predicate) {

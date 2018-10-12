@@ -16,7 +16,7 @@ public final class VPackage implements Iterable<VType> {
 	
 	@Override
 	public Iterator<VType> iterator() {
-		return model.getTypes((t) -> t.getPackageName().equals(name));
+		return model.getTypes(t -> t.getPackageName().equals(name));
 	}
 
 	public String getName() {
